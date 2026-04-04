@@ -1,0 +1,80 @@
+:root {
+  /* Base Colors */
+  --background: 210 20% 98%; /* #f8fafc - Cool gray-blue */
+  --foreground: 224 71% 4%; /* #020617 - Near black */
+
+  /* Card & Popover */
+  --card: 0 0% 100%; /* #ffffff - Pure white */
+  --card-foreground: 224 71% 4%; /* #020617 */
+  --popover: 0 0% 100%; /* #ffffff */
+  --popover-foreground: 224 71% 4%; /* #020617 */
+
+  /* Primary (Emerald/Teal) */
+  --primary: 160 84% 39%; /* #059669 - Emerald 600 */
+  --primary-foreground: 0 0% 100%; /* #ffffff */
+
+  /* Secondary */
+  --secondary: 220 14% 96%; /* #f1f5f9 - Slate 100 */
+  --secondary-foreground: 220 9% 46%; /* #64748b - Slate 500 */
+
+  /* Muted */
+  --muted: 220 14% 96%; /* #f1f5f9 */
+  --muted-foreground: 220 9% 46%; /* #64748b */
+
+  /* Accent */
+  --accent: 160 84% 39%; /* #059669 - Emerald */
+  --accent-foreground: 0 0% 100%; /* #ffffff */
+
+  /* Destructive */
+  --destructive: 0 84% 60%; /* #ef4444 - Red 500 */
+  --destructive-foreground: 0 0% 100%; /* #ffffff */
+
+  /* Borders & Inputs */
+  --border-gray: 220 13% 90%; /* #e2e8f0 - Slate 200 */
+  --input: 220 13% 91%; /* #e2e8f0 */
+  --ring: 160 84% 39%; /* #059669 - Emerald */
+
+  /* Status Colors */
+  --success: 160 84% 39%; /* #059669 - Emerald */
+  --success-foreground: 0 0% 100%; /* #ffffff */
+  --warning: 38 92% 50%; /* #f59e0b - Amber 500 */
+  --warning-foreground: 0 0% 100%; /* #ffffff */
+  --nav-active: #16a2861a;
+  --nav-active-item: #16a286;
+  --gray: #676f7e;
+  --bg-gray: #f3f4f680;
+  /* Border Radius */
+  --radius: 0.75rem;
+  /* Background Gradients */
+  --gradient-body: linear-gradient(
+    180deg,
+    #f8fafc 0%,
+    #f9fafb 40%,
+    #f4f4f5 100%
+  );
+  --gradient-body-dark: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+
+  /* Primary Gradients */
+  --gradient-primary: linear-gradient(135deg, #059669, #10b981);
+  --gradient-emerald: linear-gradient(135deg, #10b981, #34d399);
+
+  /* Accent Gradients */
+  --gradient-amber: linear-gradient(135deg, #f59e0b, #fbbf24);
+  --gradient-warning: linear-gradient(135deg, #f59e0b, #fbbf24);
+
+  /* UI Gradients */
+  --gradient-glass: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.05)
+  );
+
+  /* ============================================
+   SHADOWS
+   ============================================ */
+
+  --shadow-glow: 0 0 20px hsl(160 84% 39% / 0.25);
+  --shadow-glow-lg: 0 0 40px hsl(160 84% 39% / 0.3);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
