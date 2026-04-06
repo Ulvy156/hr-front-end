@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
+import { clearManualLogoutMarker, setManualLogoutMarker } from '@/utils/authSession'
 import { removeCookie } from '@/utils/cookie'
 
 import type { AuthUser } from '../interface/auth.interface'
@@ -16,9 +17,17 @@ export const useAuthStore = defineStore('auth', () => {
   const initialized = ref(false)
 
   const isAuthenticated = computed(() => user.value !== null)
+  const employee = computed(() => user.value?.employee ?? null)
+  const addresses = computed(() => employee.value?.addresses ?? [])
+  const emergencyContacts = computed(() => employee.value?.emergency_contacts ?? [])
+  const positions = computed(() => employee.value?.employee_positions ?? [])
 
   const setUser = (nextUser: AuthUser | null) => {
     user.value = nextUser
+
+    if (nextUser) {
+      clearManualLogoutMarker()
+    }
   }
 
   const clearAuth = () => {
@@ -28,11 +37,22 @@ export const useAuthStore = defineStore('auth', () => {
     clearAccessTokenCookie()
   }
 
+  const logout = async () => {
+    try {
+      await authService.logout()
+    } catch {
+      // Always clear client auth state even if the backend logout request fails.
+    } finally {
+      setManualLogoutMarker()
+      clearAuth()
+    }
+  }
+
   const fetchMe = async () => {
     isLoading.value = true
 
     try {
-      const currentUser = await authService.getMe()
+      const currentUser = await authService.getProfile()
       setUser(currentUser)
 
       return currentUser
@@ -44,11 +64,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
+    employee,
+    addresses,
+    emergencyContacts,
+    positions,
     isAuthenticated,
     isLoading,
     initialized,
     fetchMe,
     setUser,
     clearAuth,
+    logout,
   }
 })

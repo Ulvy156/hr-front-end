@@ -12,7 +12,7 @@ import {
   UserCheck,
   Users,
 } from 'lucide-vue-next'
-import { ROLES } from '@/constants/roles'
+import { ROLES, isOneOfRoles } from '@/constants/roles'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
@@ -40,17 +40,17 @@ const issueSectionRef = ref<HTMLElement | null>(null)
 const recordsSectionRef = ref<HTMLElement | null>(null)
 
 const employeeDashboard = computed(() => {
-  if (dashboard.value?.role !== ROLES.EMPLOYEE) return null
+  if (!isOneOfRoles(dashboard.value?.role, [ROLES.EMPLOYEE])) return null
   return dashboard.value as EmployeeDashboardResponse
 })
 
 const hrDashboard = computed(() => {
-  if (dashboard.value?.role !== ROLES.HR) return null
+  if (!isOneOfRoles(dashboard.value?.role, [ROLES.HR])) return null
   return dashboard.value as HrDashboardResponse
 })
 
 const adminDashboard = computed(() => {
-  if (dashboard.value?.role !== ROLES.ADMIN) return null
+  if (!isOneOfRoles(dashboard.value?.role, [ROLES.ADMIN])) return null
   return dashboard.value as AdminDashboardResponse
 })
 
@@ -278,6 +278,7 @@ const scrollToSection = (element: HTMLElement | null) => {
 const handleDashboardAction = async (actionKey: string) => {
   const targetByAction: Partial<Record<string, RouteLocationRaw>> = {
     manage_employees: { path: '/employees' },
+    manage_users: { path: '/users' },
     review_attendance: attendanceRouteLocation({ mode: 'review', date: 'today' }),
     attendance_history: attendanceRouteLocation({ view: 'history' }),
   }
@@ -340,7 +341,7 @@ const handleIssueSelect = async (issueKey: string) => {
 }
 
 const handleViewAllRecords = async () => {
-  if (await navigateIfAvailable(attendanceRouteLocation({ view: 'history' }))) {
+  if (await navigateIfAvailable({ path: '/attendance' })) {
     return
   }
 
@@ -391,7 +392,7 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
       <div>
         <h1 class="dashboard-title">Dashboard</h1>
         <p class="dashboard-subtitle">
-          Priority-focused overview from the `/dashboard` API response.
+          See important updates, recent activity, and key information in one place.
         </p>
       </div>
 
@@ -425,7 +426,7 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
       <div class="dashboard-state-body">
         <h3 class="dashboard-state-title">No dashboard data</h3>
         <p class="dashboard-state-text">
-          The dashboard response is empty for this account.
+          There is no dashboard information to show right now.
         </p>
       </div>
     </BaseCard>
@@ -444,6 +445,7 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
       <DashboardRecentRecords
         :records="employeeDashboard.recentRecords"
         :role="employeeDashboard.role"
+        @view-all="handleViewAllRecords"
       />
     </template>
 
@@ -495,6 +497,7 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
       <DashboardRecentRecords
         :records="workforceRecentRecords"
         :role="adminDashboard.role"
+        @view-all="handleViewAllRecords"
       />
     </template>
   </main>

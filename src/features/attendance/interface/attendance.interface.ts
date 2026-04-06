@@ -55,7 +55,14 @@ export interface EmployeeAttendanceToday {
   workedMinutes: number
   lateMinutes: number
   earlyLeaveMinutes: number
+  overtimeMinutes: number
   correctionStatus: string
+}
+
+export interface EmployeeAttendanceTodayDetail extends EmployeeAttendanceToday {
+  status: string
+  source: string | null
+  notes: string | null
 }
 
 export interface EmployeeAttendancePeriodSummary {
@@ -63,6 +70,7 @@ export interface EmployeeAttendancePeriodSummary {
   lateCount: number
   absentCount: number
   workedMinutes: number
+  overtimeMinutes: number
 }
 
 export interface EmployeeAttendanceMonthSummary extends EmployeeAttendancePeriodSummary {
@@ -78,6 +86,10 @@ export interface EmployeeAttendanceData {
 
 export interface EmployeeAttendanceResponse {
   data: EmployeeAttendanceData
+}
+
+export interface EmployeeAttendanceTodayResponse {
+  data: EmployeeAttendanceTodayDetail
 }
 
 export interface AttendanceMonthlySummaryParams {
@@ -103,17 +115,44 @@ export interface AttendanceRecord {
   status: string
   lateMinutes: number
   earlyLeaveMinutes: number
+  overtimeMinutes: number
   source: string
   notes: string | null
   correctionReason: string | null
   correctionStatus: string
   createdAt: string
   updatedAt: string
-  employee: AttendanceEmployeeRef
+  employee?: AttendanceEmployeeRef
 }
 
 export interface AttendanceDetailResponse {
   data: AttendanceRecord
+}
+
+export interface AttendanceActionResponse {
+  message: string
+  data: AttendanceRecord
+}
+
+export interface AttendanceAuditActor {
+  id: number
+  name: string
+}
+
+export interface AttendanceAuditTrail {
+  createdBy: AttendanceAuditActor | null
+  updatedBy: AttendanceAuditActor | null
+  correctedBy: AttendanceAuditActor | null
+  editedBy: AttendanceAuditActor | null
+}
+
+export interface AttendanceAuditLog extends AttendanceRecord {
+  audit: AttendanceAuditTrail
+}
+
+export interface AttendanceAuditListParams {
+  page?: number
+  per_page?: number
 }
 
 export interface AttendanceListParams {
@@ -126,6 +165,10 @@ export interface AttendanceListParams {
   per_page?: number
 }
 
+export interface EmployeeAttendanceHistoryParams {
+  per_page?: number
+}
+
 export interface AttendanceExportParams {
   employee_id?: number
   department_id?: number
@@ -133,6 +176,73 @@ export interface AttendanceExportParams {
   from_date?: string
   to_date?: string
   month?: string
+}
+
+export interface AttendanceOutageRecoveryExistingAttendance {
+  id: number
+  status: string
+  source: string | null
+}
+
+export interface AttendanceOutageRecoveryEmployee {
+  id: number
+  employeeCode: string | null
+  name: string
+  department: string | null
+  currentPosition: string | null
+  selected: boolean
+  skipReason: string | null
+  existingAttendance?: AttendanceOutageRecoveryExistingAttendance | null
+}
+
+export interface AttendanceOutageRecoverySkippedCounts {
+  onLeave: number
+  existingAttendance: number
+}
+
+export interface AttendanceOutageRecoveryPreviewData {
+  date: string
+  defaults: {
+    checkInAt: string
+    checkOutAt: string
+    notes: string
+  }
+  selectedEmployees: PaginatedResponse<AttendanceOutageRecoveryEmployee>
+  skipped: {
+    counts: AttendanceOutageRecoverySkippedCounts
+    onLeave: AttendanceOutageRecoveryEmployee[]
+    existingAttendance: AttendanceOutageRecoveryEmployee[]
+  }
+}
+
+export interface AttendanceOutageRecoveryPreviewParams {
+  date?: string
+  search?: string
+  department_id?: number
+  per_page?: number
+  page?: number
+}
+
+export interface AttendanceOutageRecoveryPreviewResponse {
+  data: AttendanceOutageRecoveryPreviewData
+}
+
+export interface AttendanceOutageRecoveryApplyPayload {
+  date: string
+  employee_ids: number[]
+  check_in_time?: string | null
+  check_out_time?: string | null
+  notes?: string | null
+}
+
+export interface AttendanceOutageRecoveryApplyResponse {
+  message: string
+  data: {
+    date: string
+    createdCount: number
+    notes: string | null
+    employees: AttendanceOutageRecoveryEmployee[]
+  }
 }
 
 export interface PaginationLink {
@@ -161,7 +271,20 @@ export interface PaginatedResponse<T> {
 export type AttendanceListResponse = PaginatedResponse<AttendanceRecord>
 
 export interface CorrectionRequest {
-  [key: string]: unknown
+  id: number
+  attendanceId: number
+  attendanceDate: string | null
+  employee?: AttendanceEmployeeRef
+  requestedCheckInTime: string | null
+  requestedCheckOutTime: string | null
+  reason: string
+  status: string
+  reviewNote: string | null
+  reviewedAt: string | null
+  reviewedBy: AttendanceAuditActor | null
+  createdAt: string | null
+  updatedAt: string | null
+  attendance: AttendanceRecord | null
 }
 
 export type CorrectionRequestListResponse = PaginatedResponse<CorrectionRequest>
@@ -171,6 +294,7 @@ export interface CorrectionRequestListParams {
   status?: string
   from_date?: string
   to_date?: string
+  page?: number
   per_page?: number
 }
 
@@ -180,3 +304,34 @@ export interface AttendanceCorrectionPayload {
   correction_reason: string
   notes?: string | null
 }
+
+export interface CorrectionRequestStorePayload {
+  attendance_id: number
+  requested_check_in_time?: string | null
+  requested_check_out_time?: string | null
+  reason: string
+}
+
+export interface MissingAttendanceRequestStorePayload {
+  attendance_date: string
+  requested_check_in_time?: string | null
+  requested_check_out_time?: string | null
+  reason: string
+}
+
+export interface CorrectionRequestStoreResponse {
+  message: string
+  data: CorrectionRequest
+}
+
+export interface CorrectionRequestReviewPayload {
+  status: 'approved' | 'rejected'
+  review_note?: string | null
+}
+
+export interface CorrectionRequestReviewResponse {
+  message: string
+  data: CorrectionRequest
+}
+
+export type AttendanceAuditListResponse = PaginatedResponse<AttendanceAuditLog>

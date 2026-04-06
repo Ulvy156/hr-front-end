@@ -2,24 +2,26 @@
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 
+import {
+  formatAttendanceActionLabel,
+  isSelfServiceAttendanceAction,
+} from '../utils/selfService'
+
 defineProps<{
   nextAction: string | null
   correctionStatus: string | null
+  actionLoading?: boolean
+  requestLoading?: boolean
+  actionError?: string
+  actionSuccess?: string
 }>()
 
 defineEmits<{
   primaryAction: []
   correctionAction: []
+  missingAttendanceAction: []
+  scanAction: []
 }>()
-
-const formatActionLabel = (value: string | null) => {
-  if (!value) return 'Attendance Action'
-
-  return value
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
 </script>
 
 <template>
@@ -28,27 +30,41 @@ const formatActionLabel = (value: string | null) => {
       <div>
         <h3 class="employee-actions-title">Attendance Actions</h3>
         <p class="employee-actions-text">
-          Self-service actions are prepared from your current attendance state.
+          Use quick actions to record attendance or open the scan page.
         </p>
       </div>
 
       <div class="employee-actions-buttons">
         <BaseButton
-          :disabled="true"
+          :disabled="!isSelfServiceAttendanceAction(nextAction)"
+          :loading="actionLoading"
           :variant="nextAction === 'check_in' || nextAction === 'check_out' ? 'primary' : 'secondary'"
           @click="$emit('primaryAction')"
         >
-          {{ formatActionLabel(nextAction) }}
+          {{ formatAttendanceActionLabel(nextAction) }}
         </BaseButton>
-        <BaseButton :disabled="true" variant="secondary" @click="$emit('correctionAction')">
-          Request Correction
+        <BaseButton variant="ghost" @click="$emit('scanAction')">
+          Open QR Scan Flow
+        </BaseButton>
+        <BaseButton :loading="requestLoading" variant="secondary" @click="$emit('correctionAction')">
+          Fix Attendance Time
+        </BaseButton>
+        <BaseButton :loading="requestLoading" variant="ghost" @click="$emit('missingAttendanceAction')">
+          Report Missing Attendance
         </BaseButton>
       </div>
+
+      <p v-if="actionSuccess" class="employee-actions-feedback employee-actions-feedback-success">
+        {{ actionSuccess }}
+      </p>
+      <p v-else-if="actionError" class="employee-actions-feedback employee-actions-feedback-error">
+        {{ actionError }}
+      </p>
 
       <p class="employee-actions-helper">
         Current correction status:
         <strong>{{ correctionStatus ?? 'none' }}</strong
-        >. Scan and correction submission workflows are not connected in this page yet.
+        >. Use the buttons above when you are ready to record today’s attendance.
       </p>
     </div>
   </BaseCard>
@@ -74,6 +90,23 @@ const formatActionLabel = (value: string | null) => {
 .employee-actions-helper {
   margin-top: 0.25rem;
   color: hsl(var(--muted-foreground));
+}
+
+.employee-actions-feedback {
+  border-radius: calc(var(--radius) - 0.125rem);
+  padding: 0.75rem 0.875rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.employee-actions-feedback-success {
+  background: hsl(142 76% 96%);
+  color: hsl(142 72% 24%);
+}
+
+.employee-actions-feedback-error {
+  background: hsl(0 86% 97%);
+  color: hsl(0 72% 42%);
 }
 
 .employee-actions-buttons {

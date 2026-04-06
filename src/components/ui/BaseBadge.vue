@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const props = withDefaults(
   defineProps<{
-    variant?: 'default' | 'success' | 'warning' | 'danger'
+    variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger'
   }>(),
   {
     variant: 'default',
@@ -32,6 +32,11 @@ const badgeClass = computed(() => ['base-badge', `variant-${props.variant}`])
 .variant-default {
   background: hsl(var(--secondary));
   color: hsl(var(--secondary-foreground));
+}
+
+.variant-primary {
+  background: hsl(var(--primary) / 0.18);
+  color: hsl(var(--primary));
 }
 
 .variant-success {

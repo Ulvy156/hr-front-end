@@ -2,6 +2,7 @@
 import { ChevronLeft, LogOut } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 
+import { getPrimaryRole, hasAnyRole } from '@/constants/roles'
 import { useAuthStore } from '@/features/auth/store/authStore'
 
 import { sidebarMenu, type SidebarMenuItem } from './sidebarMenu'
@@ -19,6 +20,12 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { user } = storeToRefs(authStore)
 
+const sectionLabels = {
+  main: 'Main',
+  management: 'Management',
+  account: 'Account',
+} as const
+
 const userName = computed(() => {
   return typeof user.value?.name === 'string' && user.value.name
     ? user.value.name
@@ -34,13 +41,47 @@ const formatRoleName = (roleName: string) => {
 }
 
 const userPosition = computed(() => {
-  const primaryRole = user.value?.roles?.[0]
+  const primaryRole = getPrimaryRole(user.value)
 
-  if (primaryRole?.name) {
-    return formatRoleName(primaryRole.name)
+  if (primaryRole) {
+    return formatRoleName(primaryRole)
   }
 
   return ''
+})
+
+const userInitials = computed(() => {
+  const words = userName.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+
+  if (!words.length) {
+    return 'U'
+  }
+
+  return words.map((word) => word.charAt(0).toUpperCase()).join('')
+})
+
+const visibleMenuItems = computed(() =>
+  sidebarMenu.filter((item) => {
+    if (!item.allowedRoles?.length) {
+      return true
+    }
+
+    return hasAnyRole(user.value, item.allowedRoles)
+  }),
+)
+
+const groupedMenuItems = computed(() => {
+  const groups = ['main', 'management', 'account'].map((sectionKey) => ({
+    key: sectionKey,
+    label: sectionLabels[sectionKey as keyof typeof sectionLabels],
+    items: visibleMenuItems.value.filter((item) => item.section === sectionKey),
+  }))
+
+  return groups.filter((group) => group.items.length > 0)
 })
 
 const isActive = (item: SidebarMenuItem) => {
@@ -52,131 +93,131 @@ const isActive = (item: SidebarMenuItem) => {
 }
 
 const handleLogout = async () => {
-  authStore.clearAuth()
+  await authStore.logout()
   await router.push('/login')
 }
 </script>
 
 <template>
   <aside
-    :class="collapsed ? 'w-20' : 'w-72'"
-    class="app-sidebar fixed inset-y-0 left-0 z-20 flex transition-[width] duration-300 ease-out"
+    :class="collapsed ? 'w-24' : 'w-72'"
+    class="fixed inset-y-0 left-0 z-20 flex overflow-hidden border-r border-[hsl(var(--border-gray))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-[var(--shadow-card)] transition-[width] duration-300 ease-out"
   >
-    <div class="flex h-full w-full flex-col px-4 py-5">
-      <div class="mb-8 flex items-center justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-3">
-          <div v-if="!collapsed" class="sidebar-brand-badge flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold">
-            AEU
+    <div class="flex h-full w-full flex-col gap-5 px-4 py-5">
+      <div class="flex items-center gap-3">
+        <RouterLink
+          to="/profile"
+          :class="
+            collapsed
+              ? 'h-12 w-12 justify-center rounded-2xl px-0'
+              : 'min-h-17 flex-1 rounded-2xl px-3 py-3'
+          "
+          :title="collapsed ? `${userName} ${userPosition ? `• ${userPosition}` : ''}` : undefined"
+          class="flex min-w-0 items-center gap-3 border border-[hsl(var(--border-gray))] bg-[hsl(var(--secondary)/0.22)] transition hover:border-[hsl(var(--primary)/0.18)] hover:bg-[hsl(var(--secondary)/0.4)]"
+        >
+          <div v-if="!collapsed" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-sm font-semibold text-[hsl(var(--primary-foreground))]">
+            {{ userInitials }}
           </div>
-          <div v-if="!collapsed" class="min-w-0">
-            <p class="sidebar-heading truncate text-sm font-semibold">{{ userName }}</p>
-            <p class="sidebar-muted truncate text-xs">{{ userPosition }}</p>
+
+          <div v-if="!collapsed" class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-[hsl(var(--foreground))]">{{ userName }}</p>
+            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">{{ userPosition || 'Account' }}</p>
           </div>
-        </div>
+        </RouterLink>
 
         <button
           type="button"
-          class="sidebar-toggle flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
+          :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[hsl(var(--border-gray))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] shadow-sm transition-all duration-200 hover:border-[hsl(var(--primary)/0.18)] hover:bg-[hsl(var(--secondary)/0.55)] hover:text-[hsl(var(--foreground))]"
           @click="$emit('toggle')"
         >
-          <ChevronLeft :size="20" :class="{ 'is-collapsed': collapsed }" class="sidebar-toggle-icon" />
+          <ChevronLeft
+            :size="20"
+            :class="{ 'rotate-180': collapsed }"
+            class="transition-transform duration-200"
+          />
         </button>
       </div>
 
-      <nav class="space-y-2">
-        <RouterLink
-          v-for="item in sidebarMenu"
-          :key="item.key"
-          :class="isActive(item) ? 'sidebar-link-active' : 'sidebar-link-idle'"
-          :to="item.path"
-          class="sidebar-link flex items-center rounded-2xl px-4 py-3 transition"
+      <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div
+          v-for="group in groupedMenuItems"
+          :key="group.key"
+          :class="collapsed ? 'mb-4 pt-0 first:mt-0' : 'mb-4 border-t border-[hsl(var(--border-gray)/0.7)] pt-4 first:mt-0 first:border-t-0 first:pt-0'"
         >
-          <component :is="item.icon" :size="20" class="sidebar-icon shrink-0" />
-          <span v-if="!collapsed" class="ml-3 truncate text-sm font-medium">
-            {{ item.label }}
-          </span>
-        </RouterLink>
-      </nav>
+          <p
+            v-if="!collapsed"
+            class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"
+          >
+            {{ group.label }}
+          </p>
 
-      <button
-        type="button"
-        class="sidebar-logout mt-auto flex items-center rounded-2xl px-4 py-3 transition"
-        @click="handleLogout"
-      >
-        <LogOut :size="20" class="sidebar-icon shrink-0" />
-        <span v-if="!collapsed" class="ml-3 truncate text-sm font-medium">
-          Logout
-        </span>
-      </button>
+          <nav class="space-y-1">
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.key"
+              :to="item.path"
+              :title="collapsed ? item.label : undefined"
+              :class="
+                [
+                  collapsed ? 'justify-center px-0' : 'px-3',
+                  isActive(item)
+                    ? 'text-[var(--nav-active-item)] shadow-sm'
+                    : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]',
+                ]
+              "
+              class="group relative flex w-full min-h-[3rem] items-center rounded-2xl py-3 transition-all duration-200"
+            >
+              <span
+                :class="isActive(item) ? 'bg-[hsl(var(--primary))] opacity-100' : 'opacity-0 group-hover:opacity-50'"
+                class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition"
+              />
+
+              <span
+                :class="
+                  isActive(item)
+                    ? 'bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]'
+                    : 'bg-transparent text-current'
+                "
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
+              >
+                <component :is="item.icon" :size="18" class="shrink-0" />
+              </span>
+
+              <div
+                v-if="!collapsed"
+                class="ml-3 min-w-0 flex-1"
+              >
+                <p
+                  :class="isActive(item) ? 'font-semibold' : 'font-medium'"
+                  class="truncate text-sm"
+                >
+                  {{ item.label }}
+                </p>
+              </div>
+            </RouterLink>
+          </nav>
+        </div>
+      </div>
+
+      <div class="border-t border-[hsl(var(--border-gray)/0.8)] pt-4">
+        <button
+          type="button"
+          :title="collapsed ? 'Logout' : undefined"
+          :class="collapsed ? 'justify-center px-0' : 'px-3 py-3'"
+          class="flex w-full items-center rounded-2xl border border-[hsl(var(--border-gray))] text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          @click="handleLogout"
+        >
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/0.25)]">
+            <LogOut :size="18" class="shrink-0" />
+          </span>
+
+          <div v-if="!collapsed" class="ml-3 min-w-0 flex-1 text-left">
+            <p class="truncate text-sm font-semibold">Logout</p>
+            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">Sign out of your account</p>
+          </div>
+        </button>
+      </div>
     </div>
   </aside>
 </template>
-
-<style scoped>
-.app-sidebar {
-  border-right: 1px solid hsl(var(--border-gray));
-  background: hsl(var(--card));
-  color: hsl(var(--foreground));
-  box-shadow: var(--shadow-card);
-}
-
-.sidebar-brand-badge {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-.sidebar-heading {
-  color: hsl(var(--foreground));
-}
-
-.sidebar-muted {
-  color: hsl(var(--muted-foreground));
-}
-
-.sidebar-toggle {
-  border: 1px solid hsl(var(--border-gray));
-  background: transparent;
-  color: hsl(var(--muted-foreground));
-}
-
-.sidebar-toggle:hover {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
-
-.sidebar-toggle-icon {
-  transition: transform 0.25s ease;
-}
-
-.sidebar-toggle-icon.is-collapsed {
-  transform: rotate(180deg);
-}
-
-.sidebar-link {
-  color: hsl(var(--foreground));
-}
-
-.sidebar-link-idle:hover {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
-
-.sidebar-link-active {
-  background: var(--nav-active);
-  color: var(--nav-active-item);
-}
-
-.sidebar-logout {
-  margin-top: auto;
-  border: 1px solid hsl(var(--border-gray));
-  color: hsl(var(--foreground));
-}
-
-.sidebar-logout:hover {
-  background: hsl(var(--muted));
-}
-
-.sidebar-icon {
-  color: currentColor;
-}
-</style>

@@ -23,6 +23,8 @@ const columns = computed<BaseTableColumn[]>(() => {
     { key: 'department', label: 'Department' },
     { key: 'checkInTime', label: 'Check In' },
     { key: 'checkOutTime', label: 'Check Out' },
+    { key: 'lateMinutes', label: 'Late' },
+    { key: 'overtimeMinutes', label: 'Overtime' },
     { key: 'status', label: 'Status' },
     { key: 'correctionStatus', label: 'Correction' },
   ]
@@ -42,6 +44,8 @@ const rows = computed(() =>
     department: record.employee?.department ?? '--',
     checkInTime: record.checkInTime ?? '--',
     checkOutTime: record.checkOutTime ?? '--',
+    lateMinutes: record.lateMinutes ?? 0,
+    overtimeMinutes: record.overtimeMinutes ?? 0,
     status: record.status ?? 'none',
     correctionStatus: record.correctionStatus ?? 'none',
     actions: record.id,
@@ -66,6 +70,93 @@ const changePage = (page: number | null | undefined) => {
 
   emit('pageChange', page)
 }
+
+const formatDisplayTime = (value: unknown) => {
+  if (!value || value === '--') {
+    return '--'
+  }
+
+  const normalizedValue = String(value)
+
+  if (normalizedValue.includes('T')) {
+    const parsedDate = new Date(normalizedValue)
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+    }
+  }
+
+  const timeMatch = normalizedValue.match(/^(\d{2}):(\d{2})/)
+
+  if (!timeMatch) {
+    return normalizedValue
+  }
+
+  const hours = Number(timeMatch[1])
+  const minutes = timeMatch[2]
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+
+  return `${displayHours}:${minutes} ${period}`
+}
+
+const formatMinutes = (value: unknown) => {
+  const minutes = Number(value ?? 0)
+
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return '--'
+  }
+
+  return `${minutes} min`
+}
+
+const parseTimeToMinutes = (value: string | null | undefined) => {
+  if (!value || value === '--') {
+    return null
+  }
+
+  if (value.includes('T')) {
+    const parsedDate = new Date(value)
+
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.getHours() * 60 + parsedDate.getMinutes()
+    }
+  }
+
+  const timeMatch = value.match(/^(\d{2}):(\d{2})/)
+
+  if (!timeMatch) {
+    return null
+  }
+
+  return Number(timeMatch[1]) * 60 + Number(timeMatch[2])
+}
+
+const resolveLateMinutes = (record: AttendanceRecord) => {
+  const backendLateMinutes = Number(record.lateMinutes ?? 0)
+
+  if (Number.isFinite(backendLateMinutes) && backendLateMinutes > 0) {
+    return backendLateMinutes
+  }
+
+  if (record.status !== 'late') {
+    return Math.max(backendLateMinutes, 0)
+  }
+
+  const checkInMinutes = parseTimeToMinutes(record.checkInTime)
+
+  if (checkInMinutes === null) {
+    return Math.max(backendLateMinutes, 0)
+  }
+
+  const workStartMinutes = 8 * 60
+
+  return Math.max(checkInMinutes - workStartMinutes, 0)
+}
 </script>
 
 <template>
@@ -74,7 +165,7 @@ const changePage = (page: number | null | undefined) => {
       <div>
         <h3 class="records-section-title">Attendance Records</h3>
         <p class="records-section-text">
-          {{ records?.total ?? 0 }} records returned from the attendance list endpoint.
+          View attendance records, open details, and move through each page of results.
         </p>
       </div>
 
@@ -99,11 +190,19 @@ const changePage = (page: number | null | undefined) => {
       </template>
 
       <template #cell-checkInTime="{ value }">
-        {{ value === '--' ? '--' : String(value).slice(0, 5) }}
+        {{ formatDisplayTime(value) }}
       </template>
 
       <template #cell-checkOutTime="{ value }">
-        {{ value === '--' ? '--' : String(value).slice(0, 5) }}
+        {{ formatDisplayTime(value) }}
+      </template>
+
+      <template #cell-lateMinutes="{ row }">
+        {{ formatMinutes(resolveLateMinutes(row.raw as AttendanceRecord)) }}
+      </template>
+
+      <template #cell-overtimeMinutes="{ value }">
+        {{ formatMinutes(value) }}
       </template>
 
       <template #cell-status="{ value }">
@@ -163,7 +262,7 @@ const changePage = (page: number | null | undefined) => {
 .records-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .records-section-header {
@@ -180,6 +279,34 @@ const changePage = (page: number | null | undefined) => {
 .records-section-text {
   margin-top: 0.25rem;
   color: hsl(var(--muted-foreground));
+}
+
+.records-section :deep(.base-table-shell) {
+  box-shadow: none;
+  border-color: hsl(var(--border-gray));
+}
+
+.records-section :deep(.base-table th),
+.records-section :deep(.base-table td) {
+  padding: 0.625rem 0.875rem;
+}
+
+.records-section :deep(.base-table th) {
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--border-gray));
+}
+
+.records-section :deep(.base-table td) {
+  color: hsl(var(--foreground) / 0.9);
+}
+
+.records-section :deep(.base-table tbody tr:nth-child(even)) {
+  background: hsl(var(--secondary) / 0.16);
+}
+
+.records-section :deep(.base-table tbody tr:hover) {
+  background: hsl(var(--secondary) / 0.3);
 }
 
 .record-link {
@@ -200,7 +327,7 @@ const changePage = (page: number | null | undefined) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .records-pagination-text {

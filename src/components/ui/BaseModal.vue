@@ -1,12 +1,21 @@
 <script setup lang="ts">
+import type { DialogBeforeCloseFn } from 'element-plus'
+
+defineOptions({
+  inheritAttrs: false,
+})
+
 const props = withDefaults(
   defineProps<{
-    open: boolean
+    open?: boolean
+    modelValue?: boolean
     closeOnOverlay?: boolean
     closeOnEscape?: boolean
     title?: string
   }>(),
   {
+    open: undefined,
+    modelValue: undefined,
     closeOnOverlay: true,
     closeOnEscape: true,
     title: undefined,
@@ -15,109 +24,93 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   close: []
+  'update:modelValue': [value: boolean]
 }>()
 
-const handleClose = () => emit('close')
+const attrs = useAttrs()
 
-const onKeydown = (event: KeyboardEvent) => {
-  if (props.open && props.closeOnEscape && event.key === 'Escape') {
-    handleClose()
+const resolvedOpen = computed(() => props.modelValue ?? props.open ?? false)
+const showHeader = computed(() => Boolean(props.title || useSlots().header))
+const isCloseRequested = ref(false)
+
+const requestClose = () => {
+  if (isCloseRequested.value) {
+    return
   }
+
+  isCloseRequested.value = true
+  emit('update:modelValue', false)
+  emit('close')
+
+  nextTick(() => {
+    isCloseRequested.value = false
+  })
 }
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (typeof document === 'undefined') return
-    document.body.style.overflow = isOpen ? 'hidden' : ''
-  },
-)
+const handleBeforeClose: DialogBeforeCloseFn = () => {
+  requestClose()
+}
 
-onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
-})
-
-onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') {
-    document.body.style.overflow = ''
+const handleUpdateModelValue = (value: boolean) => {
+  if (value) {
+    emit('update:modelValue', true)
+    return
   }
 
-  window.removeEventListener('keydown', onKeydown)
-})
+  requestClose()
+}
 </script>
 
 <template>
-  <Teleport to="body">
-    <transition name="modal-fade">
-      <div v-if="open" class="base-modal-root">
-        <button
-          class="base-modal-overlay"
-          type="button"
-          aria-label="Close modal"
-          @click="closeOnOverlay && handleClose()"
-        />
+  <ElDialog
+    v-bind="attrs"
+    :append-to-body="true"
+    :before-close="handleBeforeClose"
+    :body-class="'base-modal-body'"
+    :close-on-click-modal="closeOnOverlay"
+    :close-on-press-escape="closeOnEscape"
+    :footer-class="'base-modal-footer'"
+    :header-class="'base-modal-header'"
+    :modal-class="'base-modal-root'"
+    :model-value="resolvedOpen"
+    :show-close="showHeader"
+    :title="!$slots.header ? title : ''"
+    align-center
+    class="base-modal-panel"
+    destroy-on-close
+    @update:model-value="handleUpdateModelValue"
+  >
+    <template v-if="$slots.header" #header>
+      <slot name="header" />
+    </template>
 
-        <section
-          aria-modal="true"
-          class="base-modal-panel"
-          role="dialog"
-        >
-          <header v-if="$slots.header || title" class="base-modal-header">
-            <slot name="header">
-              <h3 class="base-modal-title">{{ title }}</h3>
-            </slot>
+    <slot />
 
-            <button class="base-modal-close" type="button" @click="handleClose">✕</button>
-          </header>
-
-          <div class="base-modal-body">
-            <slot />
-          </div>
-
-          <footer v-if="$slots.footer" class="base-modal-footer">
-            <slot name="footer" />
-          </footer>
-        </section>
-      </div>
-    </transition>
-  </Teleport>
+    <template v-if="$slots.footer" #footer>
+      <slot name="footer" />
+    </template>
+  </ElDialog>
 </template>
 
 <style scoped>
-.base-modal-root {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-}
-
-.base-modal-overlay {
-  position: absolute;
-  inset: 0;
-  border: 0;
+:deep(.base-modal-root) {
   background: hsl(var(--foreground) / 0.32);
-  transition: opacity 0.24s ease;
 }
 
-.base-modal-panel {
-  position: relative;
+:deep(.base-modal-panel.el-dialog) {
   width: min(100%, 36rem);
+  max-width: calc(100vw - 3rem);
+  margin: 0;
   border: 1px solid hsl(var(--border-gray));
   border-radius: var(--radius);
   background: hsl(var(--card));
   color: hsl(var(--foreground));
   box-shadow: var(--shadow-card-hover);
-  transform-origin: center;
-  transition:
-    opacity 0.24s ease,
-    transform 0.24s ease;
+  overflow: hidden;
 }
 
-.base-modal-header,
-.base-modal-footer {
+:deep(.base-modal-header),
+:deep(.base-modal-footer) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -126,53 +119,48 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid hsl(var(--border-gray));
 }
 
-.base-modal-footer {
+:deep(.base-modal-footer) {
   justify-content: flex-end;
   border-top: 1px solid hsl(var(--border-gray));
   border-bottom: 0;
 }
 
-.base-modal-body {
+:deep(.base-modal-body) {
   padding: 1.25rem;
 }
 
+:deep(.base-modal-header .el-dialog__title),
 .base-modal-title {
   margin: 0;
+  color: hsl(var(--foreground));
   font-size: var(--text-lg);
   font-weight: 700;
+  line-height: 1.4;
 }
 
-.base-modal-close {
-  border: 0;
-  background: transparent;
+:deep(.base-modal-panel .el-dialog__headerbtn) {
+  top: 1rem;
+  right: 1rem;
+}
+
+:deep(.base-modal-panel .el-dialog__close) {
   color: hsl(var(--muted-foreground));
-  cursor: pointer;
-  font: inherit;
   font-size: 1.125rem;
 }
 
-.base-modal-close:hover {
+:deep(.base-modal-panel .el-dialog__headerbtn:hover .el-dialog__close) {
   color: hsl(var(--foreground));
 }
 
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.24s ease;
-}
+@media (max-width: 768px) {
+  :deep(.base-modal-panel.el-dialog) {
+    max-width: calc(100vw - 1.5rem);
+  }
 
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-from .base-modal-overlay,
-.modal-fade-leave-to .base-modal-overlay {
-  opacity: 0;
-}
-
-.modal-fade-enter-from .base-modal-panel,
-.modal-fade-leave-to .base-modal-panel {
-  opacity: 0;
-  transform: translateY(12px) scale(0.98);
+  :deep(.base-modal-header),
+  :deep(.base-modal-footer),
+  :deep(.base-modal-body) {
+    padding-inline: 1rem;
+  }
 }
 </style>

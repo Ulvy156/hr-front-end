@@ -7,6 +7,7 @@ import axios, {
 } from 'axios'
 
 import { getCookie, removeCookie, setCookie } from '@/utils/cookie'
+import { hasManualLogoutMarker } from '@/utils/authSession'
 
 const ACCESS_TOKEN_COOKIE_NAME = 'access_token'
 
@@ -37,7 +38,7 @@ const clearStoredAccessToken = () => {
 const canAttemptRefreshBeforeRequest = (config: RetryableRequestConfig) => {
   const requestUrl = config.url ?? ''
 
-  if (config.skipAuthRefresh) {
+  if (config.skipAuthRefresh || hasManualLogoutMarker()) {
     return false
   }
 
@@ -49,7 +50,13 @@ const shouldRefresh = (error: AxiosError) => {
   const status = error.response?.status
   const requestUrl = request?.url ?? ''
 
-  if (!request || status !== 401 || request._retry || request.skipAuthRefresh) {
+  if (
+    !request ||
+    status !== 401 ||
+    request._retry ||
+    request.skipAuthRefresh ||
+    hasManualLogoutMarker()
+  ) {
     return false
   }
 

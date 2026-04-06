@@ -9,11 +9,14 @@ export type BaseDatePickerShortcut = {
 }
 
 type DatePickerValue = string | number | Date | null | undefined | [string, string] | [Date, Date]
+type DisabledDateHandler = (date: Date) => boolean
 
 const props = withDefaults(
   defineProps<{
     modelValue?: DatePickerValue
     label?: string
+    required?: boolean
+    disabledDate?: DisabledDateHandler
     type?: BaseDatePickerType
     placeholder?: string
     startPlaceholder?: string
@@ -28,6 +31,8 @@ const props = withDefaults(
   {
     modelValue: undefined,
     label: undefined,
+    required: false,
+    disabledDate: undefined,
     type: 'date',
     placeholder: 'Select date',
     startPlaceholder: 'Start date',
@@ -60,13 +65,14 @@ const handleChange = (value: DatePickerValue) => {
 
 <template>
   <div class="base-date-picker">
-    <BaseLabel v-if="label">
+    <BaseLabel v-if="label" :required="required">
       {{ label }}
     </BaseLabel>
 
     <ElDatePicker
       :clearable="clearable"
       :disabled="disabled"
+      :disabled-date="disabledDate"
       :end-placeholder="endPlaceholder"
       :format="format"
       :model-value="normalizedValue"

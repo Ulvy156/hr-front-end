@@ -26,7 +26,7 @@ const handleSubmit = async () => {
   <ElCard shadow="hover" class="login-card w-full max-w-md rounded-2xl">
     <div class="mb-6 space-y-2 text-center">
       <h1 class="login-title text-2xl font-semibold">Login</h1>
-      <p class="login-subtitle text-sm">Sign in with your email and password.</p>
+      <p class="login-subtitle text-sm">Sign in to view your work information and complete daily tasks.</p>
     </div>
 
     <ElAlert

@@ -1,6 +1,9 @@
 import api from '@/lib/http'
 
 import type {
+  AttendanceActionResponse,
+  AttendanceAuditListParams,
+  AttendanceAuditListResponse,
   AttendanceCorrectionPayload,
   AttendanceDetailResponse,
   AttendanceExportParams,
@@ -8,9 +11,20 @@ import type {
   AttendanceListResponse,
   AttendanceMonthlySummaryParams,
   AttendanceMonthlySummaryResponse,
+  AttendanceOutageRecoveryApplyPayload,
+  AttendanceOutageRecoveryApplyResponse,
+  AttendanceOutageRecoveryPreviewParams,
+  AttendanceOutageRecoveryPreviewResponse,
+  CorrectionRequestStorePayload,
+  CorrectionRequestReviewPayload,
+  CorrectionRequestReviewResponse,
+  CorrectionRequestStoreResponse,
   CorrectionRequestListParams,
   CorrectionRequestListResponse,
+  MissingAttendanceRequestStorePayload,
+  EmployeeAttendanceHistoryParams,
   EmployeeAttendanceResponse,
+  EmployeeAttendanceTodayResponse,
 } from '../interface/attendance.interface'
 
 type AttendanceExportFormat = 'pdf' | 'excel'
@@ -65,8 +79,64 @@ const exportAttendance = async (format: AttendanceExportFormat, params?: Attenda
 }
 
 export const attendanceService = {
+  async checkIn() {
+    const { data } = await api.post<AttendanceActionResponse>('/attendance/check-in', {})
+
+    return data
+  },
+
+  async checkOut() {
+    const { data } = await api.post<AttendanceActionResponse>('/attendance/check-out', {})
+
+    return data
+  },
+
+  async getEmployeeTodayAttendance() {
+    const { data } = await api.get<EmployeeAttendanceTodayResponse>('/attendance/me/today')
+
+    return data
+  },
+
   async getEmployeeAttendanceSummary() {
     const { data } = await api.get<EmployeeAttendanceResponse>('/attendance/me/summary')
+
+    return data
+  },
+
+  async getEmployeeAttendanceHistory(params?: EmployeeAttendanceHistoryParams) {
+    const { data } = await api.get<AttendanceListResponse>('/attendance/me/history', {
+      params,
+    })
+
+    return data
+  },
+
+  async submitCorrectionRequest(payload: CorrectionRequestStorePayload) {
+    const { data } = await api.post<CorrectionRequestStoreResponse>(
+      '/attendance/me/correction-request',
+      payload,
+    )
+
+    return data
+  },
+
+  async submitMissingAttendanceRequest(payload: MissingAttendanceRequestStorePayload) {
+    const { data } = await api.post<CorrectionRequestStoreResponse>(
+      '/attendance/me/missing-request',
+      payload,
+    )
+
+    return data
+  },
+
+  async reviewCorrectionRequest(
+    correctionRequestId: number,
+    payload: CorrectionRequestReviewPayload,
+  ) {
+    const { data } = await api.patch<CorrectionRequestReviewResponse>(
+      `/attendance/correction-requests/${correctionRequestId}`,
+      payload,
+    )
 
     return data
   },
@@ -96,6 +166,34 @@ export const attendanceService = {
       {
         params,
       },
+    )
+
+    return data
+  },
+
+  async getAuditLogs(params?: AttendanceAuditListParams) {
+    const { data } = await api.get<AttendanceAuditListResponse>('/attendance/audit/logs', {
+      params,
+    })
+
+    return data
+  },
+
+  async getOutageRecoveryPreview(params?: AttendanceOutageRecoveryPreviewParams) {
+    const { data } = await api.get<AttendanceOutageRecoveryPreviewResponse>(
+      '/attendance/outage-recovery/preview',
+      {
+        params,
+      },
+    )
+
+    return data
+  },
+
+  async applyOutageRecovery(payload: AttendanceOutageRecoveryApplyPayload) {
+    const { data } = await api.post<AttendanceOutageRecoveryApplyResponse>(
+      '/attendance/outage-recovery/apply',
+      payload,
     )
 
     return data

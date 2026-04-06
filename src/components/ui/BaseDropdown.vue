@@ -22,6 +22,7 @@ const props = withDefaults(
     label?: string
     options: BaseDropdownOption[]
     placeholder?: string
+    required?: boolean
     clearable?: boolean
     disabled?: boolean
     size?: 'small' | 'default' | 'large'
@@ -33,6 +34,7 @@ const props = withDefaults(
     modelValue: undefined,
     label: undefined,
     placeholder: 'Select option',
+    required: false,
     clearable: true,
     disabled: false,
     size: 'default',
@@ -76,7 +78,7 @@ const handleChange = (value: DropdownValue) => {
 
 <template>
   <div class="base-dropdown">
-    <BaseLabel v-if="label">
+    <BaseLabel v-if="label" :required="required">
       {{ label }}
     </BaseLabel>
 

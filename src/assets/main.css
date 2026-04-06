@@ -111,3 +111,61 @@ li {
 .border-gray {
   border-color: hsl(var(--border-gray));
 }
+
+.el-button {
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s ease,
+    opacity 0.2s ease;
+}
+
+.el-button:not(.is-disabled):hover {
+  box-shadow: 0 10px 20px hsl(var(--foreground) / 0.08);
+  transform: translateY(-1px);
+}
+
+.el-button:not(.is-disabled):active {
+  transform: scale(0.985);
+}
+
+.el-button--primary {
+  box-shadow: 0 12px 22px hsl(var(--primary) / 0.18);
+}
+
+.el-button--primary:not(.is-disabled):hover {
+  background: hsl(160 84% 34%);
+  border-color: hsl(160 84% 34%);
+}
+
+.el-button.is-disabled,
+.el-button.is-disabled:hover,
+.el-button.is-disabled:focus,
+.el-button.is-disabled:active {
+  cursor: not-allowed;
+  opacity: 0.56;
+  box-shadow: none;
+  transform: none;
+  pointer-events: none;
+}
+
+.el-button--primary.is-disabled,
+.el-button--success.is-disabled,
+.el-button--danger.is-disabled,
+.el-button--warning.is-disabled {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border-gray));
+  color: hsl(var(--muted-foreground));
+}
+
+.el-button--default.is-disabled,
+.el-button--info.is-disabled,
+.el-button--text.is-disabled,
+.el-button--link.is-disabled {
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border-gray));
+  color: hsl(var(--muted-foreground));
+}

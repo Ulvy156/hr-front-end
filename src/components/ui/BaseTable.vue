@@ -33,7 +33,11 @@ const alignClass = (align?: BaseTableColumn['align']) => {
         </tr>
       </thead>
       <tbody v-if="rows.length">
-        <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
+        <tr
+          v-for="(row, rowIndex) in rows"
+          :key="rowIndex"
+          :class="typeof row._rowClass === 'string' ? row._rowClass : ''"
+        >
           <td
             v-for="column in columns"
             :key="column.key"

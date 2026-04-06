@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
+import { clearManualLogoutMarker } from '@/utils/authSession'
 import { setCookie } from '@/utils/cookie'
 
 import type { LoginPayload } from '../interface/auth.interface'
@@ -28,6 +29,7 @@ const getErrorMessage = (error: unknown) => {
 
 export const useLogin = () => {
   const authStore = useAuthStore()
+  const route = useRoute()
   const router = useRouter()
   const loading = ref(false)
   const error = ref('')
@@ -40,9 +42,18 @@ export const useLogin = () => {
       const response = await authService.login(payload)
       const { access_token, expires_in } = response as LoginAuthResponse
 
+      clearManualLogoutMarker()
       setAccessTokenCookie(access_token, expires_in)
       await authStore.fetchMe()
-      await router.push('/dashboard')
+
+      const redirectTarget =
+        typeof route.query.redirect === 'string' &&
+        route.query.redirect.startsWith('/') &&
+        !route.query.redirect.startsWith('/login')
+          ? route.query.redirect
+          : '/dashboard'
+
+      await router.push(redirectTarget)
 
       return response
     } catch (err) {

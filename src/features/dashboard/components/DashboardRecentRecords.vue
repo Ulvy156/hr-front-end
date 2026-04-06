@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ROLES, type Role } from '@/constants/roles'
+import { ROLES, isOneOfRoles, type Role } from '@/constants/roles'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
@@ -34,7 +34,7 @@ const statusClass = (status: string) => {
   return 'status-danger'
 }
 
-const hasEmployeeColumn = computed(() => props.role !== ROLES.EMPLOYEE)
+const hasEmployeeColumn = computed(() => !isOneOfRoles(props.role, [ROLES.EMPLOYEE]))
 
 const getEmployeeName = (record: EmployeeDashboardRecord | WorkforceDashboardRecord) => {
   if ('employee' in record) {
@@ -58,7 +58,7 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
     <div class="records-header">
       <div>
         <h3 class="records-title">Recent Records</h3>
-        <p class="records-subtitle">Latest attendance activity from the dashboard response.</p>
+        <p class="records-subtitle">View recent attendance activity and open details when needed.</p>
       </div>
       <BaseButton variant="ghost" @click="emit('viewAll')">View All</BaseButton>
     </div>
@@ -100,7 +100,7 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
     <div v-else class="records-empty">
       <p class="records-empty-title">No recent attendance records</p>
       <p class="records-empty-text">
-        Recent employee attendance will appear here when records are available.
+        Recent attendance activity will appear here when it is available.
       </p>
     </div>
   </BaseCard>

@@ -27,7 +27,7 @@ const emit = defineEmits<{
     <div class="issue-section-header">
       <div>
         <h3 class="issue-title">Attendance Issues</h3>
-        <p class="issue-subtitle">Critical follow-up items for today. Click a card to filter records.</p>
+        <p class="issue-subtitle">Review items that need attention and open the matching records.</p>
       </div>
     </div>
 

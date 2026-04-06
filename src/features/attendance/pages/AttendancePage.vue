@@ -1,14 +1,12 @@
 <script setup lang="ts">
+import axios from "axios";
 import {
   AlertCircle,
   BadgeCheck,
   Briefcase,
-  Building2,
   CalendarDays,
   Clock3,
   ClockAlert,
-  Eye,
-  FileDown,
   FileClock,
   Hourglass,
   NotebookTabs,
@@ -16,613 +14,664 @@ import {
   Timer,
   UserX,
   Users,
-} from 'lucide-vue-next'
-import { ROLES, isManagementRole as hasManagementRole } from '@/constants/roles'
+} from "lucide-vue-next";
 
-import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseCard from '@/components/ui/BaseCard.vue'
-import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
-import BaseDropdown, { type BaseDropdownOption } from '@/components/ui/BaseDropdown.vue'
-import BaseInput from '@/components/ui/BaseInput.vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
-import BaseSpinner from '@/components/ui/BaseSpinner.vue'
-import BaseTextarea from '@/components/ui/BaseTextarea.vue'
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseDatePicker from "@/components/ui/BaseDatePicker.vue";
+import BaseDropdown, { type BaseDropdownOption } from "@/components/ui/BaseDropdown.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseSpinner from "@/components/ui/BaseSpinner.vue";
 import DashboardSummaryCards, {
   type DashboardSummaryCardItem,
-} from '@/features/dashboard/components/DashboardSummaryCards.vue'
+} from "@/features/dashboard/components/DashboardSummaryCards.vue";
 
-import AttendanceCorrectionRequests from '../components/AttendanceCorrectionRequests.vue'
-import AttendanceDepartmentSummary from '../components/AttendanceDepartmentSummary.vue'
-import AttendanceEmployeeActions from '../components/AttendanceEmployeeActions.vue'
-import AttendancePlaceholderSection from '../components/AttendancePlaceholderSection.vue'
-import AttendanceRecordsTable from '../components/AttendanceRecordsTable.vue'
-import AttendanceStatusBadge from '../components/AttendanceStatusBadge.vue'
-import { useAttendance } from '../composable/useAttendance'
-import type {
-  AttendanceExportParams,
-  AttendanceListParams,
-  AttendanceRecord,
-} from '../interface/attendance.interface'
+import AttendanceDepartmentSummary from "../components/AttendanceDepartmentSummary.vue";
+import AttendanceCorrectionRequests from "../components/AttendanceCorrectionRequests.vue";
+import AttendanceEmployeeActions from "../components/AttendanceEmployeeActions.vue";
+import AttendanceOutageRecoveryPanel from "../components/AttendanceOutageRecoveryPanel.vue";
+import AttendancePlaceholderSection from "../components/AttendancePlaceholderSection.vue";
+import AttendanceRecordsTable from "../components/AttendanceRecordsTable.vue";
+import AttendanceStatusBadge from "../components/AttendanceStatusBadge.vue";
+import { useAttendance } from "../composable/useAttendance";
+
+type AttendanceRequestErrorPayload = {
+  message?: string;
+  errors?: Record<string, string[]>;
+};
 
 const {
-  attendanceDetail,
   attendanceList,
+  applyOutageRecovery,
   correctionRequests,
   employeeData,
   error,
-  correctAttendance,
-  exportExcel,
-  exportPdf,
-  fetchAttendanceDetail,
   fetchAttendanceList,
   fetchCorrectionRequests,
   fetchEmployeeAttendance,
+  fetchOutageRecoveryPreview,
   fetchOrganizationAttendance,
-  isDetailLoading,
   isLoading,
+  isOutageRecoveryApplying,
+  isOutageRecoveryLoading,
   lastUpdated,
+  outageRecoveryError,
+  outageRecoveryPreview,
   organizationData,
   role,
-} = useAttendance()
+  hasEmployeeRole,
+  hasHrRole,
+  hasAdminRole,
+  hasManagementRole,
+} = useAttendance();
 
-const selectedDateRange = ref<[string, string] | null>(getCurrentMonthDateRange())
-const selectedDepartmentId = ref<string | number | undefined>(undefined)
-const statusFilter = ref('')
-const employeeSearch = ref('')
-const attendancePage = ref(1)
-const allDepartmentOptions = ref<BaseDropdownOption[]>([])
-const activeManagementTab = ref<'management' | 'department' | 'audit'>('management')
-const isAttendanceDetailOpen = ref(false)
-const isModifyModalOpen = ref(false)
-const isSubmittingModification = ref(false)
-const isExportingPdf = ref(false)
-const isExportingExcel = ref(false)
-const exportError = ref('')
-const modifyForm = reactive({
-  attendanceId: 0,
-  attendanceDate: '',
-  checkInTime: '',
-  checkOutTime: '',
-  correctionReason: '',
-  notes: '',
-})
-
-const isEmployeeRole = computed(() => role.value === ROLES.EMPLOYEE)
-const isHrRole = computed(() => role.value === ROLES.HR)
-const isManagementRole = computed(() => hasManagementRole(role.value))
-const hasAuditTab = computed(() => isHrRole.value)
+const selectedMonth = ref(getCurrentMonth());
+const selectedDepartmentId = ref<string | number | undefined>(undefined);
+const statusFilter = ref("");
+const employeeSearch = ref("");
+const hrManagementTab = ref("records");
+const attendanceListPage = ref(1);
+const correctionRequestsPage = ref(1);
+const outageRecoveryDate = ref(getTodayDate());
+const outageRecoverySearch = ref("");
+const outageRecoveryDepartmentId = ref<string | number | null>(null);
+const outageRecoveryPerPage = ref(10);
+const outageRecoveryPage = ref(1);
+const outageRecoveryMode = ref<"full_day" | "morning" | "evening">("full_day");
+const outageRecoveryCheckInAt = ref<Date | null>(null);
+const outageRecoveryCheckOutAt = ref<Date | null>(null);
+const selectedOutageRecoveryEmployeeIds = ref<number[]>([]);
+const outageRecoveryNotes = ref("");
 
 const hasData = computed(() => {
-  if (isEmployeeRole.value) {
-    return employeeData.value !== null
+  if (hasEmployeeRole.value && !hasManagementRole.value) {
+    return employeeData.value !== null;
   }
 
-  if (isManagementRole.value) {
-    return organizationData.value !== null
+  if (hasManagementRole.value) {
+    return organizationData.value !== null;
   }
 
-  return false
-})
-
-const showInitialLoading = computed(() => isLoading.value && !hasData.value)
-const showBlockingError = computed(() => Boolean(error.value) && !hasData.value)
-const showUnsupportedRole = computed(() => !role.value && !isLoading.value)
-const showEmptyState = computed(() => !hasData.value && !isLoading.value && !error.value && Boolean(role.value))
+  return false;
+});
 
 const formattedLastUpdated = computed(() => {
-  if (!lastUpdated.value) return 'Never'
+  if (!lastUpdated.value) return "Never";
 
-  return new Date(lastUpdated.value).toLocaleString()
-})
+  return new Date(lastUpdated.value).toLocaleString();
+});
 
-const employeeIdentity = computed(() => employeeData.value?.employee ?? null)
-const employeeToday = computed(() => employeeData.value?.today ?? null)
-const employeeWeek = computed(() => employeeData.value?.thisWeek ?? null)
-const employeeMonth = computed(() => employeeData.value?.thisMonth ?? null)
-const selectedFromDate = computed(() => selectedDateRange.value?.[0] ?? undefined)
-const selectedToDate = computed(() => selectedDateRange.value?.[1] ?? undefined)
-const selectedSummaryMonth = computed(() => {
-  const fromDate = selectedFromDate.value
+const employeeIdentity = computed(() => employeeData.value?.employee ?? null);
+const employeeToday = computed(() => employeeData.value?.today ?? null);
+const employeeWeek = computed(() => employeeData.value?.thisWeek ?? null);
+const employeeMonth = computed(() => employeeData.value?.thisMonth ?? null);
 
-  return fromDate ? fromDate.slice(0, 7) : getCurrentMonth()
-})
-const departmentIdFilter = computed<number | undefined>(() => {
-  if (selectedDepartmentId.value === null || selectedDepartmentId.value === undefined) {
-    return undefined
-  }
-
-  const parsedValue = Number(selectedDepartmentId.value)
-
-  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : undefined
-})
-
-const employeeIdFilter = computed<number | undefined>(() => {
-  const normalizedValue = employeeSearch.value.trim()
-
-  if (!normalizedValue) {
-    return undefined
-  }
-
-  const parsedValue = Number(normalizedValue)
-
-  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : undefined
-})
-
-const departmentFilterOptions = computed<BaseDropdownOption[]>(() => allDepartmentOptions.value)
+const departmentFilterOptions = computed<BaseDropdownOption[]>(() =>
+  (organizationData.value?.byDepartment ?? []).map((department) => ({
+    label: department.departmentName,
+    value: department.departmentId,
+  })),
+);
 
 const statusFilterOptions: BaseDropdownOption[] = [
-  { label: 'All statuses', value: '' },
-  { label: 'Present', value: 'present' },
-  { label: 'Late', value: 'late' },
-  { label: 'Absent', value: 'absent' },
-  { label: 'Corrected', value: 'corrected' },
-]
+  { label: "Present", value: "present" },
+  { label: "Late", value: "late" },
+  { label: "Absent", value: "absent" },
+  { label: "Corrected", value: "corrected" },
+];
 
 const organizationPrimaryCards = computed<DashboardSummaryCardItem[]>(() => {
-  const totals = organizationData.value?.totals
+  const totals = organizationData.value?.totals;
 
-  if (!totals) return []
+  if (!totals) return [];
 
   return [
     {
-      key: 'totalRecords',
-      label: 'Total Records',
+      key: "totalRecords",
+      label: "Total Records",
       value: formatCount(totals.totalRecords),
       icon: NotebookTabs,
     },
     {
-      key: 'completedRecords',
-      label: 'Completed Records',
+      key: "completedRecords",
+      label: "Completed Records",
       value: formatCount(totals.completedRecords),
       icon: BadgeCheck,
     },
     {
-      key: 'lateRecords',
-      label: 'Late Records',
+      key: "lateRecords",
+      label: "Late Records",
       value: formatCount(totals.lateRecords),
       icon: ClockAlert,
     },
     {
-      key: 'correctedRecords',
-      label: 'Corrected Records',
+      key: "correctedRecords",
+      label: "Corrected Records",
       value: formatCount(totals.correctedRecords),
       icon: PencilLine,
     },
-  ]
-})
+  ];
+});
 
 const organizationSecondaryCards = computed<DashboardSummaryCardItem[]>(() => {
-  const totals = organizationData.value?.totals
+  const totals = organizationData.value?.totals;
 
-  if (!totals) return []
+  if (!totals) return [];
 
   return [
     {
-      key: 'absentRecords',
-      label: 'Absent Records',
+      key: "absentRecords",
+      label: "Absent Records",
       value: formatCount(totals.absentRecords),
       icon: UserX,
     },
     {
-      key: 'totalWorkedMinutes',
-      label: 'Total Worked Minutes',
+      key: "totalWorkedMinutes",
+      label: "Total Worked Minutes",
       value: formatMinutes(totals.totalWorkedMinutes),
       helper: `${formatCount(totals.totalWorkedMinutes)} minutes`,
       icon: Timer,
     },
     {
-      key: 'averageWorkedMinutes',
-      label: 'Average Worked Minutes',
+      key: "averageWorkedMinutes",
+      label: "Average Worked Minutes",
       value: formatMinutes(totals.averageWorkedMinutes),
       helper: `${formatCount(totals.averageWorkedMinutes)} minutes`,
       icon: Hourglass,
     },
     {
-      key: 'pendingCorrectionRequestsCount',
-      label: 'Pending Correction Requests',
+      key: "pendingCorrectionRequestsCount",
+      label: "Pending Correction Requests",
       value: formatCount(totals.pendingCorrectionRequestsCount),
       icon: FileClock,
     },
-  ]
-})
+  ];
+});
 
 const employeeWeekCards = computed<DashboardSummaryCardItem[]>(() => {
-  if (!employeeWeek.value) return []
+  if (!employeeWeek.value) return [];
 
   return [
     {
-      key: 'presentDays',
-      label: 'Present Days',
+      key: "presentDays",
+      label: "Present Days",
       value: formatCount(employeeWeek.value.presentDays),
       icon: CalendarDays,
     },
     {
-      key: 'lateCount',
-      label: 'Late Count',
+      key: "lateCount",
+      label: "Late Count",
       value: formatCount(employeeWeek.value.lateCount),
       icon: ClockAlert,
     },
     {
-      key: 'absentCount',
-      label: 'Absent Count',
+      key: "absentCount",
+      label: "Absent Count",
       value: formatCount(employeeWeek.value.absentCount),
       icon: AlertCircle,
     },
     {
-      key: 'workedMinutes',
-      label: 'Worked Minutes',
+      key: "workedMinutes",
+      label: "Worked Minutes",
       value: formatMinutes(employeeWeek.value.workedMinutes),
       helper: `${formatCount(employeeWeek.value.workedMinutes)} minutes`,
       icon: Timer,
     },
-  ]
-})
+  ];
+});
 
 const employeeMonthCards = computed<DashboardSummaryCardItem[]>(() => {
-  if (!employeeMonth.value) return []
+  if (!employeeMonth.value) return [];
 
   return [
     {
-      key: 'presentDays',
-      label: 'Present Days',
+      key: "presentDays",
+      label: "Present Days",
       value: formatCount(employeeMonth.value.presentDays),
       icon: CalendarDays,
     },
     {
-      key: 'lateCount',
-      label: 'Late Count',
+      key: "lateCount",
+      label: "Late Count",
       value: formatCount(employeeMonth.value.lateCount),
       icon: ClockAlert,
     },
     {
-      key: 'absentCount',
-      label: 'Absent Count',
+      key: "absentCount",
+      label: "Absent Count",
       value: formatCount(employeeMonth.value.absentCount),
       icon: AlertCircle,
     },
     {
-      key: 'workedMinutes',
-      label: 'Worked Minutes',
+      key: "workedMinutes",
+      label: "Worked Minutes",
       value: formatMinutes(employeeMonth.value.workedMinutes),
       helper: `${formatCount(employeeMonth.value.workedMinutes)} minutes`,
       icon: Timer,
     },
     {
-      key: 'pendingCorrectionRequests',
-      label: 'Pending Correction Requests',
+      key: "pendingCorrectionRequests",
+      label: "Pending Correction Requests",
       value: formatCount(employeeMonth.value.pendingCorrectionRequests),
       icon: FileClock,
     },
-  ]
-})
+  ];
+});
 
 const todayDetails = computed(() => {
-  const today = employeeToday.value
+  const today = employeeToday.value;
 
-  if (!today) return []
+  if (!today) return [];
 
   return [
     {
-      key: 'attendanceDate',
-      label: 'Attendance Date',
+      key: "attendanceDate",
+      label: "Attendance Date",
       value: formatDate(today.attendanceDate),
     },
     {
-      key: 'checkInTime',
-      label: 'Check-in Time',
+      key: "checkInTime",
+      label: "Check-in Time",
       value: formatTime(today.checkInTime),
     },
     {
-      key: 'checkOutTime',
-      label: 'Check-out Time',
+      key: "checkOutTime",
+      label: "Check-out Time",
       value: formatTime(today.checkOutTime),
     },
     {
-      key: 'workedMinutes',
-      label: 'Worked Minutes',
+      key: "workedMinutes",
+      label: "Worked Minutes",
       value: formatMinutes(today.workedMinutes),
     },
     {
-      key: 'lateMinutes',
-      label: 'Late Minutes',
+      key: "lateMinutes",
+      label: "Late Minutes",
       value: formatMinutes(today.lateMinutes),
     },
     {
-      key: 'earlyLeaveMinutes',
-      label: 'Early Leave Minutes',
+      key: "earlyLeaveMinutes",
+      label: "Early Leave Minutes",
       value: formatMinutes(today.earlyLeaveMinutes),
     },
-  ]
-})
-
-const attendanceListParams = computed<AttendanceListParams>(() => {
-  return {
-    employee_id: isHrRole.value ? employeeIdFilter.value : undefined,
-    department_id: isHrRole.value ? departmentIdFilter.value : undefined,
-    status: statusFilter.value || undefined,
-    from_date: selectedFromDate.value,
-    to_date: selectedToDate.value,
-    page: attendancePage.value,
-    per_page: 20,
-  }
-})
-
-const attendanceExportParams = computed<AttendanceExportParams>(() => ({
-  employee_id: isHrRole.value ? employeeIdFilter.value : undefined,
-  department_id: isHrRole.value ? departmentIdFilter.value : undefined,
-  status: isHrRole.value ? statusFilter.value || undefined : undefined,
-  from_date: selectedFromDate.value,
-  to_date: selectedToDate.value,
-}))
+  ];
+});
 
 const loadAttendance = async () => {
   if (!role.value) {
-    return
+    return;
   }
 
   try {
-    if (isEmployeeRole.value) {
-      await fetchEmployeeAttendance()
-      return
-    }
-
-    const params =
-      isHrRole.value
+    if (hasManagementRole.value) {
+      const params = hasHrRole.value
         ? {
-            month: selectedSummaryMonth.value,
-            department_id: departmentIdFilter.value,
+            month: selectedMonth.value,
+            department_id:
+              selectedDepartmentId.value !== undefined
+                ? Number(selectedDepartmentId.value)
+                : undefined,
           }
         : {
-            month: selectedSummaryMonth.value,
-          }
+            month: selectedMonth.value,
+          };
 
-    await Promise.all([
-      fetchOrganizationAttendance(params),
-      fetchAttendanceList(attendanceListParams.value),
-      isHrRole.value
-        ? fetchCorrectionRequests({
-            employee_id: employeeIdFilter.value,
-            from_date: attendanceListParams.value.from_date,
-            to_date: attendanceListParams.value.to_date,
-            per_page: 20,
-            status: 'pending',
-          })
-        : Promise.resolve(),
-    ])
+      await fetchOrganizationAttendance(params);
+
+      if (!hasHrRole.value) {
+        return;
+      }
+
+      await Promise.all([
+        fetchAttendanceList(buildAttendanceListParams(attendanceListPage.value)),
+        fetchCorrectionRequests(buildCorrectionRequestParams(correctionRequestsPage.value)),
+        loadOutageRecoveryPreview({
+          resetSelection: true,
+          resetNotes: true,
+          resetTimes: true,
+        }).catch(() => undefined),
+      ]);
+
+      return;
+    }
+
+    if (hasEmployeeRole.value) {
+      await fetchEmployeeAttendance();
+    }
   } catch {
     // Error state is handled by the attendance store.
   }
-}
+};
 
-const openAttendanceDetail = async (record: AttendanceRecord) => {
-  isAttendanceDetailOpen.value = true
+const handleApplyFilters = async () => {
+  attendanceListPage.value = 1;
+  correctionRequestsPage.value = 1;
+  await loadAttendance();
+};
+
+const syncOutageRecoveryPreview = ({
+  resetSelection = false,
+  resetNotes = false,
+  resetTimes = false,
+}: {
+  resetSelection?: boolean;
+  resetNotes?: boolean;
+  resetTimes?: boolean;
+} = {}) => {
+  const preview = outageRecoveryPreview.value;
+
+  if (!preview) {
+    selectedOutageRecoveryEmployeeIds.value = [];
+    outageRecoveryNotes.value = "";
+    return;
+  }
+
+  const previewSelectedIds = preview.selectedEmployees.data
+    .filter((employee) => employee.selected)
+    .map((employee) => employee.id);
+
+  selectedOutageRecoveryEmployeeIds.value = resetSelection
+    ? previewSelectedIds
+    : Array.from(new Set([...selectedOutageRecoveryEmployeeIds.value, ...previewSelectedIds]));
+
+  if (resetNotes || !outageRecoveryNotes.value.trim()) {
+    outageRecoveryNotes.value = preview.defaults.notes ?? "";
+  }
+
+  if (resetTimes || !outageRecoveryCheckInAt.value || !outageRecoveryCheckOutAt.value) {
+    outageRecoveryCheckInAt.value = preview.defaults.checkInAt
+      ? new Date(preview.defaults.checkInAt)
+      : null;
+    outageRecoveryCheckOutAt.value = preview.defaults.checkOutAt
+      ? new Date(preview.defaults.checkOutAt)
+      : null;
+  }
+};
+
+const buildOutageRecoveryPreviewParams = () => ({
+  date: outageRecoveryDate.value,
+  search: outageRecoverySearch.value.trim() || undefined,
+  department_id:
+    outageRecoveryDepartmentId.value !== null && outageRecoveryDepartmentId.value !== undefined
+      ? Number(outageRecoveryDepartmentId.value)
+      : undefined,
+  per_page: outageRecoveryPerPage.value,
+  page: outageRecoveryPage.value,
+});
+
+const loadOutageRecoveryPreview = async (options?: {
+  resetSelection?: boolean;
+  resetNotes?: boolean;
+  resetTimes?: boolean;
+}) => {
+  const response = await fetchOutageRecoveryPreview({
+    ...buildOutageRecoveryPreviewParams(),
+  });
+
+  syncOutageRecoveryPreview(options);
+  return response;
+};
+
+const handlePreviewOutageRecovery = async () => {
+  outageRecoveryPage.value = 1;
+  await loadOutageRecoveryPreview({
+    resetSelection: true,
+    resetNotes: true,
+    resetTimes: true,
+  });
+};
+
+const handleOutageRecoveryPageChange = async (page: number) => {
+  outageRecoveryPage.value = page;
+  await loadOutageRecoveryPreview();
+};
+
+const handleResetOutageRecoveryFilters = async () => {
+  outageRecoverySearch.value = "";
+  outageRecoveryDepartmentId.value = null;
+  outageRecoveryPerPage.value = 10;
+  outageRecoveryPage.value = 1;
+  selectedOutageRecoveryEmployeeIds.value = [];
+  outageRecoveryNotes.value = "";
+  await loadOutageRecoveryPreview({
+    resetSelection: true,
+    resetNotes: true,
+    resetTimes: true,
+  });
+};
+
+const handleApplyOutageRecovery = async () => {
+  if (!outageRecoveryPreview.value || !selectedOutageRecoveryEmployeeIds.value.length) {
+    return;
+  }
+
   try {
-    await fetchAttendanceDetail(record.id)
-  } catch {
-    // The page-level error state already handles request failures.
-  }
-}
+    const response = await applyOutageRecovery({
+      date: outageRecoveryDate.value,
+      employee_ids: selectedOutageRecoveryEmployeeIds.value,
+      notes: outageRecoveryNotes.value.trim() || outageRecoveryPreview.value.defaults.notes,
+      ...buildOutageRecoveryApplyTimePayload(),
+    });
 
-const openModifyModal = (record: AttendanceRecord) => {
-  modifyForm.attendanceId = record.id
-  modifyForm.attendanceDate = record.attendanceDate
-  modifyForm.checkInTime = record.checkInTime ? record.checkInTime.slice(0, 5) : ''
-  modifyForm.checkOutTime = record.checkOutTime ? record.checkOutTime.slice(0, 5) : ''
-  modifyForm.correctionReason = record.correctionReason ?? ''
-  modifyForm.notes = record.notes ?? ''
-  isModifyModalOpen.value = true
-}
-
-const resetModifyForm = () => {
-  modifyForm.attendanceId = 0
-  modifyForm.attendanceDate = ''
-  modifyForm.checkInTime = ''
-  modifyForm.checkOutTime = ''
-  modifyForm.correctionReason = ''
-  modifyForm.notes = ''
-}
-
-const closeModifyModal = () => {
-  isModifyModalOpen.value = false
-  resetModifyForm()
-}
-
-const toAttendanceDateTime = (date: string, time: string) => {
-  if (!date || !time) {
-    return null
-  }
-
-  return `${date}T${time}:00+07:00`
-}
-
-const submitAttendanceModification = async () => {
-  if (!modifyForm.attendanceId || !modifyForm.correctionReason.trim()) {
-    return
-  }
-
-  isSubmittingModification.value = true
-
-  try {
-    await correctAttendance(modifyForm.attendanceId, {
-      check_in_time: toAttendanceDateTime(modifyForm.attendanceDate, modifyForm.checkInTime),
-      check_out_time: toAttendanceDateTime(modifyForm.attendanceDate, modifyForm.checkOutTime),
-      correction_reason: modifyForm.correctionReason.trim(),
-      notes: modifyForm.notes.trim() || null,
-    })
-
-    await loadAttendance()
-    closeModifyModal()
-  } finally {
-    isSubmittingModification.value = false
-  }
-}
-
-const downloadExportFile = (blob: Blob, filename: string) => {
-  const objectUrl = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-
-  anchor.href = objectUrl
-  anchor.download = filename
-  document.body.appendChild(anchor)
-  anchor.click()
-  document.body.removeChild(anchor)
-
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl)
-  }, 0)
-}
-
-const handleExport = async (format: 'pdf' | 'excel') => {
-  exportError.value = ''
-
-  if (format === 'pdf') {
-    isExportingPdf.value = true
-  } else {
-    isExportingExcel.value = true
-  }
-
-  try {
-    const response =
-      format === 'pdf'
-        ? await exportPdf(attendanceExportParams.value)
-        : await exportExcel(attendanceExportParams.value)
-
-    downloadExportFile(response.blob, response.filename)
+    ElMessage.success(
+      response.message ?? "Outage recovery attendance created successfully.",
+    );
+    await loadAttendance();
   } catch (err) {
-    exportError.value = err instanceof Error ? err.message : 'Failed to export attendance.'
-  } finally {
-    if (format === 'pdf') {
-      isExportingPdf.value = false
-    } else {
-      isExportingExcel.value = false
-    }
+    ElMessage.error(getAttendanceRequestErrorMessage(err, "Failed to apply outage recovery."));
   }
-}
+};
 
-const applyFilters = async () => {
-  attendancePage.value = 1
-  await loadAttendance()
-}
-
-const handleAttendancePageChange = async (page: number) => {
-  if (!isManagementRole.value || page < 1 || page === attendancePage.value) {
-    return
-  }
-
-  attendancePage.value = page
+const handleAttendanceListPageChange = async (page: number) => {
+  attendanceListPage.value = page;
 
   try {
-    await fetchAttendanceList(attendanceListParams.value)
+    await fetchAttendanceList(buildAttendanceListParams(page));
   } catch {
     // Error state is handled by the attendance store.
   }
-}
+};
 
-watch(
-  () => organizationData.value?.byDepartment,
-  (departments) => {
-    if (!departments?.length) {
-      return
-    }
+const handleCorrectionRequestsPageChange = async (page: number) => {
+  correctionRequestsPage.value = page;
 
-    const nextOptions = [...allDepartmentOptions.value]
-
-    departments.forEach((department) => {
-      const existingIndex = nextOptions.findIndex(
-        (option) => option.value === department.departmentId,
-      )
-      const nextOption = {
-        label: department.departmentName,
-        value: department.departmentId,
-      }
-
-      if (existingIndex >= 0) {
-        nextOptions[existingIndex] = nextOption
-        return
-      }
-
-      nextOptions.push(nextOption)
-    })
-
-    nextOptions.sort((left, right) => left.label.localeCompare(right.label))
-    allDepartmentOptions.value = nextOptions
-  },
-  { immediate: true },
-)
+  try {
+    await fetchCorrectionRequests(buildCorrectionRequestParams(page));
+  } catch {
+    // Error state is handled by the attendance store.
+  }
+};
 
 watch(
   () => role.value,
   async (nextRole) => {
-    if (!nextRole) return
+    if (!nextRole) return;
 
-    activeManagementTab.value = 'management'
-
-    if (nextRole !== ROLES.HR) {
-      selectedDepartmentId.value = undefined
-      allDepartmentOptions.value = []
+    if (nextRole !== "hr") {
+      selectedDepartmentId.value = undefined;
     }
 
-    attendancePage.value = 1
-
-    await loadAttendance()
+    await loadAttendance();
   },
   { immediate: true },
-)
+);
 
-watch([selectedDateRange, selectedDepartmentId, statusFilter, employeeSearch], () => {
-  attendancePage.value = 1
-})
+watch(
+  () => outageRecoveryDate.value,
+  async () => {
+    outageRecoveryPage.value = 1;
+    selectedOutageRecoveryEmployeeIds.value = [];
+    outageRecoveryNotes.value = "";
+    outageRecoveryMode.value = "full_day";
+
+    if (hasHrRole.value) {
+      await loadOutageRecoveryPreview({
+        resetSelection: true,
+        resetNotes: true,
+        resetTimes: true,
+      }).catch(() => undefined);
+    }
+  },
+);
 
 function formatCount(value: number | null | undefined) {
-  return String(value ?? 0)
+  return String(value ?? 0);
+}
+
+function getAttendanceRequestErrorMessage(
+  error: unknown,
+  fallback = "Attendance request failed. Please try again.",
+) {
+  if (axios.isAxiosError<AttendanceRequestErrorPayload>(error)) {
+    const errorPayload = error.response?.data;
+    const firstValidationMessage = errorPayload?.errors
+      ? Object.values(errorPayload.errors).flat()[0]
+      : null;
+
+    return firstValidationMessage ?? errorPayload?.message ?? fallback;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return '--'
+  if (!value) return "--";
 
-  return new Date(value).toLocaleDateString()
+  return new Date(value).toLocaleDateString();
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return '--'
+  if (!value) return "--";
 
-  return value.slice(0, 5)
+  return value.slice(0, 5);
 }
 
 function formatMinutes(value: number | null | undefined) {
-  const minutes = value ?? 0
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
+  const minutes = value ?? 0;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
 
   if (hours === 0) {
-    return `${remainingMinutes}m`
+    return `${remainingMinutes}m`;
   }
 
   if (remainingMinutes === 0) {
-    return `${hours}h`
+    return `${hours}h`;
   }
 
-  return `${hours}h ${remainingMinutes}m`
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function buildOutageRecoveryApplyTimePayload() {
+  if (outageRecoveryMode.value === "morning") {
+    return {
+      check_in_time: formatDateTimeWithOffset(outageRecoveryCheckInAt.value),
+      check_out_time: null,
+    };
+  }
+
+  if (outageRecoveryMode.value === "evening") {
+    return {
+      check_out_time: formatDateTimeWithOffset(outageRecoveryCheckOutAt.value),
+    };
+  }
+
+  return {};
+}
+
+function buildAttendanceListParams(page = 1) {
+  const dateRange = getMonthDateRange(selectedMonth.value);
+
+  return {
+    department_id:
+      selectedDepartmentId.value !== undefined
+        ? Number(selectedDepartmentId.value)
+        : undefined,
+    status: statusFilter.value || undefined,
+    from_date: dateRange.from,
+    to_date: dateRange.to,
+    page,
+    per_page: 15,
+  };
+}
+
+function buildCorrectionRequestParams(page = 1) {
+  const dateRange = getMonthDateRange(selectedMonth.value);
+
+  return {
+    status: "pending",
+    from_date: dateRange.from,
+    to_date: dateRange.to,
+    page,
+    per_page: 10,
+  };
 }
 
 function getCurrentMonth() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
 
-  return `${now.getFullYear()}-${month}`
+  return `${now.getFullYear()}-${month}`;
 }
 
-function getCurrentMonthDateRange(): [string, string] {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const monthText = String(month + 1).padStart(2, '0')
-  const lastDay = new Date(year, month + 1, 0).getDate()
+function getTodayDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
 
-  return [
-    `${year}-${monthText}-01`,
-    `${year}-${monthText}-${String(lastDay).padStart(2, '0')}`,
-  ]
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function getMonthDateRange(monthValue: string) {
+  const [yearString, monthString] = monthValue.split("-");
+  const year = Number(yearString);
+  const monthIndex = Number(monthString) - 1;
+
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0) {
+    return {
+      from: getTodayDate(),
+      to: getTodayDate(),
+    };
+  }
+
+  const firstDay = new Date(year, monthIndex, 1);
+  const lastDay = new Date(year, monthIndex + 1, 0);
+
+  return {
+    from: formatDateInput(firstDay),
+    to: formatDateInput(lastDay),
+  };
+}
+
+function formatDateInput(value: Date) {
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${value.getFullYear()}-${month}-${day}`;
+}
+
+function formatDateTimeWithOffset(value: Date | null) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return null;
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  const seconds = String(value.getSeconds()).padStart(2, "0");
+  const timezoneOffsetMinutes = -value.getTimezoneOffset();
+  const offsetSign = timezoneOffsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffsetMinutes = Math.abs(timezoneOffsetMinutes);
+  const offsetHours = String(Math.floor(absoluteOffsetMinutes / 60)).padStart(2, "0");
+  const offsetMinutes = String(absoluteOffsetMinutes % 60).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
 }
 </script>
 
@@ -637,36 +686,14 @@ function getCurrentMonthDateRange(): [string, string] {
       </div>
 
       <div class="attendance-header-actions">
-        <div class="attendance-header-meta">
-          <p class="attendance-last-updated">Last updated: {{ formattedLastUpdated }}</p>
-          <p v-if="exportError" class="attendance-export-error">{{ exportError }}</p>
-        </div>
-
-        <div class="attendance-header-buttons">
-          <BaseButton
-            :loading="isExportingPdf"
-            variant="ghost"
-            @click="handleExport('pdf')"
-          >
-            <FileDown :size="16" />
-            Export PDF
-          </BaseButton>
-          <BaseButton
-            :loading="isExportingExcel"
-            variant="ghost"
-            @click="handleExport('excel')"
-          >
-            <FileDown :size="16" />
-            Export Excel
-          </BaseButton>
-          <BaseButton :loading="isLoading" variant="secondary" @click="loadAttendance">
-            Refresh
-          </BaseButton>
-        </div>
+        <p class="attendance-last-updated">Last updated: {{ formattedLastUpdated }}</p>
+        <BaseButton :loading="isLoading" variant="secondary" @click="loadAttendance">
+          Refresh
+        </BaseButton>
       </div>
     </div>
 
-    <div v-if="showInitialLoading" class="attendance-loading">
+    <div v-if="isLoading" class="attendance-loading">
       <BaseCard v-for="index in 6" :key="index" class="attendance-skeleton-card">
         <div class="attendance-skeleton-body">
           <div class="attendance-skeleton-line short" />
@@ -676,7 +703,7 @@ function getCurrentMonthDateRange(): [string, string] {
       </BaseCard>
     </div>
 
-    <BaseCard v-else-if="showBlockingError" class="attendance-state-card">
+    <BaseCard v-else-if="error" class="attendance-state-card">
       <div class="attendance-state-body">
         <h3 class="attendance-state-title">Failed to load attendance</h3>
         <p class="attendance-state-text">{{ error }}</p>
@@ -684,7 +711,7 @@ function getCurrentMonthDateRange(): [string, string] {
       </div>
     </BaseCard>
 
-    <BaseCard v-else-if="showUnsupportedRole" class="attendance-state-card">
+    <BaseCard v-else-if="!role" class="attendance-state-card">
       <div class="attendance-state-body">
         <h3 class="attendance-state-title">Unsupported role</h3>
         <p class="attendance-state-text">
@@ -693,30 +720,28 @@ function getCurrentMonthDateRange(): [string, string] {
       </div>
     </BaseCard>
 
-    <BaseCard v-else-if="showEmptyState" class="attendance-state-card">
+    <BaseCard v-else-if="!hasData" class="attendance-state-card">
       <div class="attendance-state-body">
         <h3 class="attendance-state-title">No attendance data</h3>
-        <p class="attendance-state-text">
-          Attendance data is not available for this role yet.
-        </p>
+        <p class="attendance-state-text">Attendance data is not available for this role yet.</p>
       </div>
     </BaseCard>
 
-    <template v-else-if="isEmployeeRole && employeeData">
+    <template v-else-if="hasEmployeeRole && !hasManagementRole && employeeData">
       <BaseCard class="attendance-identity-card">
         <div class="attendance-identity-body">
           <div>
             <p class="attendance-section-label">Employee</p>
-            <h2 class="attendance-identity-title">{{ employeeIdentity?.name ?? '--' }}</h2>
+            <h2 class="attendance-identity-title">{{ employeeIdentity?.name ?? "--" }}</h2>
           </div>
           <div class="attendance-identity-meta">
             <span class="attendance-meta-item">
               <Briefcase :size="16" />
-              {{ employeeIdentity?.department ?? '--' }}
+              {{ employeeIdentity?.department ?? "--" }}
             </span>
             <span class="attendance-meta-item">
               <Users :size="16" />
-              ID #{{ employeeIdentity?.id ?? '--' }}
+              ID #{{ employeeIdentity?.id ?? "--" }}
             </span>
           </div>
         </div>
@@ -746,20 +771,16 @@ function getCurrentMonthDateRange(): [string, string] {
                 {{
                   employeeToday?.nextAction
                     ? employeeToday.nextAction
-                        .split('_')
+                        .split("_")
                         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                        .join(' ')
-                    : '--'
+                        .join(" ")
+                    : "--"
                 }}
               </span>
             </div>
           </div>
 
-          <div
-            v-for="detail in todayDetails"
-            :key="detail.key"
-            class="attendance-detail-card"
-          >
+          <div v-for="detail in todayDetails" :key="detail.key" class="attendance-detail-card">
             <span class="attendance-detail-label">{{ detail.label }}</span>
             <span class="attendance-detail-value">{{ detail.value }}</span>
           </div>
@@ -788,12 +809,12 @@ function getCurrentMonthDateRange(): [string, string] {
       </section>
     </template>
 
-    <template v-else-if="isManagementRole && organizationData">
+    <template v-else-if="hasManagementRole && organizationData">
       <BaseCard class="attendance-context-card">
         <div class="attendance-context-body">
           <div>
             <p class="attendance-section-label">Attendance Overview</p>
-            <h2 class="attendance-context-title">{{ organizationData.month ?? '--' }}</h2>
+            <h2 class="attendance-context-title">{{ organizationData.month ?? "--" }}</h2>
           </div>
 
           <div class="attendance-context-range">
@@ -810,228 +831,120 @@ function getCurrentMonthDateRange(): [string, string] {
         </div>
       </BaseCard>
 
-      <DashboardSummaryCards :items="organizationPrimaryCards" />
-      <DashboardSummaryCards :items="organizationSecondaryCards" tone="secondary" />
+      <section class="attendance-card-group attendance-card-group-primary">
+        <DashboardSummaryCards :items="organizationPrimaryCards" />
+      </section>
+      <section class="attendance-card-group attendance-card-group-secondary">
+        <DashboardSummaryCards :items="organizationSecondaryCards" tone="secondary" />
+      </section>
 
-      <ElTabs v-model="activeManagementTab" class="attendance-tabs">
-        <ElTabPane name="management">
-          <template #label>
-            <span class="attendance-tab-label">
-              <CalendarDays :size="16" />
-              <span>Attendance Management</span>
-            </span>
-          </template>
+      <section v-if="hasHrRole" class="attendance-summary-section">
+        <div class="attendance-section-copy">
+          <h3 class="attendance-section-title">Management Filters</h3>
+          <p class="attendance-section-text">
+            Monthly and department filters use real summary data. Status and employee search are
+            reserved until detailed endpoints are connected.
+          </p>
+        </div>
 
-          <div class="attendance-tab-panel">
-            <section class="attendance-summary-section">
-              <div v-if="isHrRole">
-                <h3 class="attendance-section-title">Attendance Management</h3>
-                <p class="attendance-section-text">
-                  Filters, attendance records, and correction requests are managed together in one operational section.
-                </p>
-              </div>
-              <div v-else>
-                <h3 class="attendance-section-title">Attendance Records</h3>
-                <p class="attendance-section-text">
-                  Read-only attendance records returned from the attendance list endpoint.
-                </p>
-              </div>
-
-              <BaseCard v-if="isHrRole" class="attendance-management-card">
-                <div class="attendance-filters-grid">
-                  <BaseDatePicker
-                    v-model="selectedDateRange"
-                    @change="applyFilters"
-                    end-placeholder="To date"
-                    label="Date Range"
-                    start-placeholder="From date"
-                    type="daterange"
-                    value-format="YYYY-MM-DD"
-                  />
-                  <BaseDropdown
-                    v-model="selectedDepartmentId"
-                    @change="applyFilters"
-                    label="Department"
-                    :options="departmentFilterOptions"
-                    placeholder="All available departments"
-                  />
-                  <BaseDropdown
-                    v-model="statusFilter"
-                    @change="applyFilters"
-                    :options="statusFilterOptions"
-                    clearable
-                    label="Status"
-                    placeholder="All statuses"
-                  />
-                  <BaseInput
-                    v-model="employeeSearch"
-                    label="Employee ID"
-                    placeholder="Filter by employee ID"
-                    type="number"
-                  />
-                </div>
-
-                <div class="attendance-filters-actions">
-                  <BaseButton variant="secondary" @click="applyFilters">Apply Filters</BaseButton>
-                </div>
-                <div class="attendance-management-content">
-                  <AttendanceRecordsTable
-                    :can-modify="true"
-                    :records="attendanceList"
-                    @modify-click="openModifyModal"
-                    @page-change="handleAttendancePageChange"
-                    @row-click="openAttendanceDetail"
-                  />
-
-                  <AttendanceCorrectionRequests :requests="correctionRequests" embedded />
-                </div>
-              </BaseCard>
-
-              <AttendanceRecordsTable
-                v-else
-                :records="attendanceList"
-                @page-change="handleAttendancePageChange"
-                @row-click="openAttendanceDetail"
-              />
-            </section>
+        <BaseCard class="attendance-filters-card">
+          <div class="attendance-filters-grid">
+            <BaseDatePicker
+              v-model="selectedMonth"
+              label="Month"
+              format="MMMM YYYY"
+              type="month"
+              value-format="YYYY-MM"
+              size="large"
+            />
+            <BaseDropdown
+              v-model="selectedDepartmentId"
+              label="Department"
+              :options="departmentFilterOptions"
+              placeholder="All available departments"
+            />
+            <BaseDropdown
+              v-model="statusFilter"
+              :options="statusFilterOptions"
+              clearable
+              disabled
+              label="Status"
+              placeholder="Pending API connection"
+            />
+            <BaseInput
+              v-model="employeeSearch"
+              disabled
+              label="Employee Search"
+              placeholder="Pending API connection"
+            />
+            <div class="attendance-filters-actions">
+              <BaseButton variant="secondary" @click="handleApplyFilters">Apply Filters</BaseButton>
+            </div>
           </div>
-        </ElTabPane>
+        </BaseCard>
+      </section>
 
-        <ElTabPane name="department">
-          <template #label>
-            <span class="attendance-tab-label">
-              <Building2 :size="16" />
-              <span>Department Summary</span>
-            </span>
-          </template>
+      <section v-if="hasManagementRole" class="attendance-summary-section">
+        <div class="attendance-section-copy">
+          <h3 class="attendance-section-title">Attendance Management</h3>
+          <p class="attendance-section-text">
+            Review department totals and manage attendance activity from one workspace.
+          </p>
+        </div>
 
-          <div class="attendance-tab-panel">
-            <section class="attendance-summary-section">
+        <div class="attendance-management-card">
+          <ElTabs v-model="hrManagementTab" class="attendance-management-tabs">
+            <ElTabPane label="Department Summary" name="department-summary">
               <AttendanceDepartmentSummary :rows="organizationData.byDepartment ?? []" />
-            </section>
-          </div>
-        </ElTabPane>
+            </ElTabPane>
 
-        <ElTabPane v-if="hasAuditTab" name="audit">
-          <template #label>
-            <span class="attendance-tab-label">
-              <Eye :size="16" />
-              <span>Audit & Oversight</span>
-            </span>
-          </template>
-
-          <div class="attendance-tab-panel">
-            <section class="attendance-summary-section">
-              <AttendancePlaceholderSection
-                description="Audit logs and oversight-specific attendance reporting can be added here when those read-only endpoints are connected to this page."
-                title="Audit & Oversight"
+            <ElTabPane v-if="hasHrRole" label="Attendance Records" name="records">
+              <AttendanceRecordsTable
+                :records="attendanceList"
+                @page-change="handleAttendanceListPageChange"
               />
-            </section>
-          </div>
-        </ElTabPane>
-      </ElTabs>
+            </ElTabPane>
+
+            <ElTabPane v-if="hasHrRole" label="Correction Requests" name="correction-requests">
+              <AttendanceCorrectionRequests
+                :embedded="true"
+                :requests="correctionRequests"
+                @page-change="handleCorrectionRequestsPageChange"
+              />
+            </ElTabPane>
+
+            <ElTabPane v-if="hasHrRole" label="Outage Recovery" name="outage-recovery">
+              <AttendanceOutageRecoveryPanel
+                v-model:department-id="outageRecoveryDepartmentId"
+                v-model:notes="outageRecoveryNotes"
+                v-model:preview-date="outageRecoveryDate"
+                v-model:per-page="outageRecoveryPerPage"
+                v-model:recovery-check-in-at="outageRecoveryCheckInAt"
+                v-model:recovery-check-out-at="outageRecoveryCheckOutAt"
+                v-model:recovery-mode="outageRecoveryMode"
+                v-model:search="outageRecoverySearch"
+                v-model:selected-employee-ids="selectedOutageRecoveryEmployeeIds"
+                :applying="isOutageRecoveryApplying"
+                :department-options="departmentFilterOptions"
+                :error="outageRecoveryError"
+                :loading="isOutageRecoveryLoading"
+                :preview="outageRecoveryPreview"
+                @apply="handleApplyOutageRecovery"
+                @page-change="handleOutageRecoveryPageChange"
+                @preview="handlePreviewOutageRecovery"
+                @reset-filters="handleResetOutageRecoveryFilters"
+              />
+            </ElTabPane>
+          </ElTabs>
+        </div>
+      </section>
+
+      <AttendancePlaceholderSection
+        v-if="hasAdminRole"
+        description="Audit logs and oversight-specific attendance reporting can be added here when those read-only endpoints are connected to this page."
+        title="Audit & Oversight"
+      />
     </template>
-
-    <BaseModal
-      :open="isAttendanceDetailOpen"
-      title="Attendance Detail"
-      @close="isAttendanceDetailOpen = false"
-    >
-      <div v-if="isDetailLoading" class="attendance-detail-modal-state">
-        <BaseSpinner />
-      </div>
-
-      <div v-else-if="attendanceDetail" class="attendance-detail-modal-grid">
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Employee</span>
-          <span class="attendance-detail-value">{{ attendanceDetail.employee?.name ?? '--' }}</span>
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Department</span>
-          <span class="attendance-detail-value">
-            {{ attendanceDetail.employee?.department ?? '--' }}
-          </span>
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Attendance Date</span>
-          <span class="attendance-detail-value">{{ formatDate(attendanceDetail.attendanceDate) }}</span>
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Check In</span>
-          <span class="attendance-detail-value">{{ formatTime(attendanceDetail.checkInTime) }}</span>
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Check Out</span>
-          <span class="attendance-detail-value">{{ formatTime(attendanceDetail.checkOutTime) }}</span>
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Status</span>
-          <AttendanceStatusBadge :status="attendanceDetail.status" />
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Correction Status</span>
-          <AttendanceStatusBadge :status="attendanceDetail.correctionStatus" />
-        </div>
-        <div class="attendance-detail-modal-item">
-          <span class="attendance-detail-label">Source</span>
-          <span class="attendance-detail-value">{{ attendanceDetail.source ?? '--' }}</span>
-        </div>
-        <div class="attendance-detail-modal-item attendance-detail-modal-item-full">
-          <span class="attendance-detail-label">Notes</span>
-          <span class="attendance-detail-value">{{ attendanceDetail.notes ?? '--' }}</span>
-        </div>
-        <div class="attendance-detail-modal-item attendance-detail-modal-item-full">
-          <span class="attendance-detail-label">Correction Reason</span>
-          <span class="attendance-detail-value">
-            {{ attendanceDetail.correctionReason ?? '--' }}
-          </span>
-        </div>
-      </div>
-    </BaseModal>
-
-    <BaseModal
-      :open="isModifyModalOpen"
-      title="Modify Attendance"
-      @close="closeModifyModal"
-    >
-      <div class="attendance-modify-form">
-        <BaseInput
-          v-model="modifyForm.checkInTime"
-          label="Check In Time"
-          placeholder="HH:mm"
-          type="time"
-        />
-        <BaseInput
-          v-model="modifyForm.checkOutTime"
-          label="Check Out Time"
-          placeholder="HH:mm"
-          type="time"
-        />
-        <BaseTextarea
-          v-model="modifyForm.correctionReason"
-          label="Correction Reason"
-          placeholder="Explain why the record is being modified."
-          :rows="3"
-        />
-        <BaseTextarea
-          v-model="modifyForm.notes"
-          label="Notes"
-          placeholder="Optional notes for this attendance update."
-          :rows="3"
-        />
-      </div>
-
-      <template #footer>
-        <BaseButton variant="ghost" @click="closeModifyModal">Cancel</BaseButton>
-        <BaseButton
-          :disabled="!modifyForm.correctionReason.trim()"
-          :loading="isSubmittingModification"
-          @click="submitAttendanceModification"
-        >
-          Save Changes
-        </BaseButton>
-      </template>
-    </BaseModal>
   </main>
 </template>
 
@@ -1039,7 +952,8 @@ function getCurrentMonthDateRange(): [string, string] {
 .attendance-page {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
+  padding-bottom: 1rem;
 }
 
 .attendance-header {
@@ -1047,6 +961,13 @@ function getCurrentMonthDateRange(): [string, string] {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: calc(var(--radius) + 0.5rem);
+  background:
+    linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 34%),
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.3) 100%);
+  box-shadow: var(--shadow-card);
 }
 
 .attendance-header-actions {
@@ -1055,19 +976,56 @@ function getCurrentMonthDateRange(): [string, string] {
   gap: 0.75rem;
 }
 
-.attendance-header-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
+.attendance-management-card {
+  border: 1px solid hsl(var(--primary) / 0.14);
+  border-radius: calc(var(--radius) + 0.25rem);
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.1) 100%);
+  box-shadow: var(--shadow-card);
+  padding: 0.875rem 1rem 1rem;
 }
 
-.attendance-header-buttons {
+.attendance-management-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0;
+}
+
+.attendance-management-tabs :deep(.el-tabs__nav) {
+  gap: 1.25rem;
+}
+
+.attendance-management-tabs :deep(.el-tabs__nav-wrap::after) {
+  background: hsl(var(--border-gray));
+}
+
+.attendance-management-tabs :deep(.el-tabs__item) {
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding-inline: 0;
+  transition: color 0.18s ease;
+}
+
+.attendance-management-tabs :deep(.el-tabs__item:hover) {
+  color: hsl(var(--foreground));
+}
+
+.attendance-management-tabs :deep(.el-tabs__item.is-active) {
+  color: hsl(var(--foreground));
+}
+
+.attendance-management-tabs :deep(.el-tabs__active-bar) {
+  background: hsl(var(--primary));
+  height: 3px;
+}
+
+.attendance-management-tabs :deep(.el-tab-pane) {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  flex-direction: column;
+}
+
+.attendance-management-tabs :deep(.el-tabs__content) {
+  overflow: visible;
 }
 
 .attendance-title,
@@ -1076,6 +1034,11 @@ function getCurrentMonthDateRange(): [string, string] {
 .attendance-identity-title,
 .attendance-state-title {
   color: hsl(var(--foreground));
+}
+
+.attendance-title {
+  font-size: clamp(1.8rem, 2vw, 2.15rem);
+  letter-spacing: -0.025em;
 }
 
 .attendance-subtitle,
@@ -1089,11 +1052,9 @@ function getCurrentMonthDateRange(): [string, string] {
 
 .attendance-last-updated {
   font-size: var(--text-xs);
-}
-
-.attendance-export-error {
-  color: hsl(var(--destructive));
-  font-size: var(--text-xs);
+  padding: 0.45rem 0.75rem;
+  border-radius: 9999px;
+  background: hsl(var(--secondary) / 0.72);
 }
 
 .attendance-loading {
@@ -1130,17 +1091,19 @@ function getCurrentMonthDateRange(): [string, string] {
 }
 
 .attendance-state-card {
-  min-height: 15rem;
+  min-height: 12rem;
+  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.18) 100%);
 }
 
 .attendance-state-body {
   display: flex;
   height: 100%;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  padding: 1.5rem;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  text-align: center;
 }
 
 .attendance-identity-body,
@@ -1150,6 +1113,31 @@ function getCurrentMonthDateRange(): [string, string] {
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem;
+}
+
+.attendance-context-card {
+  overflow: hidden;
+  border-color: hsl(var(--primary) / 0.15);
+  background:
+    linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 36%),
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.24) 100%);
+}
+
+.attendance-card-group {
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: calc(var(--radius) + 0.2rem);
+  padding: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.attendance-card-group-primary {
+  border-color: hsl(var(--primary) / 0.14);
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.16) 100%);
+}
+
+.attendance-card-group-secondary {
+  background: hsl(var(--card));
 }
 
 .attendance-identity-meta,
@@ -1175,6 +1163,8 @@ function getCurrentMonthDateRange(): [string, string] {
 
 .attendance-today-card {
   overflow: hidden;
+  border-color: hsl(var(--primary) / 0.14);
+  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.24) 100%);
 }
 
 .attendance-today-header {
@@ -1201,7 +1191,8 @@ function getCurrentMonthDateRange(): [string, string] {
   padding: 1rem;
   border: 1px solid hsl(var(--border-gray));
   border-radius: var(--radius);
-  background: hsl(var(--secondary) / 0.5);
+  background: hsl(var(--card));
+  box-shadow: inset 0 1px 0 hsl(var(--primary) / 0.04);
 }
 
 .attendance-detail-value {
@@ -1213,98 +1204,92 @@ function getCurrentMonthDateRange(): [string, string] {
 .attendance-summary-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
-.attendance-tabs {
-  width: 100%;
-}
-
-.attendance-tabs:deep(.el-tabs__header) {
-  margin-bottom: 1rem;
-}
-
-.attendance-tabs:deep(.el-tabs__nav-wrap::after) {
-  background: hsl(var(--border-gray));
-}
-
-.attendance-tabs:deep(.el-tabs__item) {
-  color: hsl(var(--muted-foreground));
-  font-weight: 600;
-}
-
-.attendance-tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.attendance-tab-panel {
-  padding: 1rem 0.25rem 0.25rem;
-}
-
-.attendance-tabs:deep(.el-tabs__item.is-active) {
-  color: hsl(var(--foreground));
-}
-
-.attendance-tabs:deep(.el-tabs__active-bar) {
-  background: hsl(var(--primary));
+.attendance-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .attendance-filters-card {
   overflow: hidden;
-}
-
-.attendance-management-card {
-  overflow: hidden;
+  border-color: hsl(var(--border-gray));
+  background: hsl(var(--secondary) / 0.14);
+  box-shadow: none;
 }
 
 .attendance-filters-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 1rem;
-  padding: 1.25rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.875rem;
+  padding: 0.9rem 1rem;
+  align-items: end;
 }
 
 .attendance-filters-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 0 1.25rem 1.25rem;
+  align-self: end;
 }
 
-.attendance-management-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 0 1.25rem 1.25rem;
+.attendance-page :deep(.summary-card-primary),
+.attendance-page :deep(.summary-card-secondary) {
+  border: 1px solid hsl(var(--border-gray));
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.18) 100%);
+  box-shadow: var(--shadow-card);
 }
 
-.attendance-detail-modal-state {
-  display: flex;
-  justify-content: center;
-  padding: 1rem 0;
+.attendance-page :deep(.summary-card-primary) {
+  border-color: hsl(var(--primary) / 0.12);
 }
 
-.attendance-detail-modal-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+.attendance-page :deep(.summary-grid-primary) {
+  gap: 0.875rem;
 }
 
-.attendance-detail-modal-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+.attendance-page :deep(.summary-grid-secondary) {
+  gap: 0.875rem;
 }
 
-.attendance-detail-modal-item-full {
-  grid-column: 1 / -1;
+.attendance-page :deep(.summary-card-body) {
+  padding: 1.1rem 1.15rem;
 }
 
-.attendance-modify-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+.attendance-page :deep(.summary-label) {
+  color: hsl(var(--foreground) / 0.8);
+  font-weight: 700;
+}
+
+.attendance-page :deep(.summary-icon-shell) {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+.attendance-page :deep(.summary-icon) {
+  color: hsl(var(--primary));
+}
+
+.attendance-page :deep(.summary-value) {
+  color: hsl(var(--foreground));
+}
+
+.attendance-page :deep(.summary-card-primary:nth-child(1)) {
+  border-color: hsl(var(--primary) / 0.18);
+  background:
+    linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 44%),
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.18) 100%);
+}
+
+.attendance-page :deep(.summary-card-primary:nth-child(3)),
+.attendance-page :deep(.summary-card-secondary:last-child) {
+  border-color: hsl(var(--primary) / 0.14);
+}
+
+.attendance-page :deep(.summary-helper) {
+  color: hsl(var(--muted-foreground));
 }
 
 @media (max-width: 768px) {
@@ -1321,20 +1306,11 @@ function getCurrentMonthDateRange(): [string, string] {
     flex-wrap: wrap;
   }
 
-  .attendance-header-meta {
-    align-items: flex-start;
-  }
-
-  .attendance-header-buttons {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .attendance-filters-actions {
     justify-content: flex-start;
   }
 
-  .attendance-detail-modal-grid {
+  .attendance-filters-grid {
     grid-template-columns: 1fr;
   }
 }

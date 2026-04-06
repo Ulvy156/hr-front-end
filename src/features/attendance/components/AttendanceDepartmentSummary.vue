@@ -37,11 +37,13 @@ const tableRows = computed(() =>
       <p class="department-summary-text">Department-level attendance totals for the selected month.</p>
     </div>
 
-    <BaseTable
-      :columns="columns"
-      :rows="tableRows"
-      empty-text="No department attendance summary is available for the selected filters."
-    />
+    <div class="department-summary-table">
+      <BaseTable
+        :columns="columns"
+        :rows="tableRows"
+        empty-text="No department attendance summary is available for the selected filters."
+      />
+    </div>
   </section>
 </template>
 
@@ -49,7 +51,7 @@ const tableRows = computed(() =>
 .department-summary {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .department-summary-title {
@@ -59,5 +61,33 @@ const tableRows = computed(() =>
 .department-summary-text {
   margin-top: 0.25rem;
   color: hsl(var(--muted-foreground));
+}
+
+.department-summary-table :deep(.base-table-shell) {
+  box-shadow: none;
+  border-color: hsl(var(--border-gray));
+}
+
+.department-summary-table :deep(.base-table th),
+.department-summary-table :deep(.base-table td) {
+  padding: 0.625rem 0.875rem;
+}
+
+.department-summary-table :deep(.base-table th) {
+  background: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+  border-bottom-color: hsl(var(--border-gray));
+}
+
+.department-summary-table :deep(.base-table td) {
+  color: hsl(var(--foreground) / 0.9);
+}
+
+.department-summary-table :deep(.base-table tbody tr:nth-child(even)) {
+  background: hsl(var(--secondary) / 0.16);
+}
+
+.department-summary-table :deep(.base-table tbody tr:hover) {
+  background: hsl(var(--secondary) / 0.3);
 }
 </style>

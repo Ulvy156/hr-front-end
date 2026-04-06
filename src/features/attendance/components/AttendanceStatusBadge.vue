@@ -15,7 +15,11 @@ const label = computed(() => {
 })
 
 const variant = computed(() => {
-  if (['checked_in', 'checked_out', 'present', 'corrected'].includes(normalizedStatus.value)) {
+  if (
+    ['checked_in', 'checked_out', 'present', 'corrected', 'approved'].includes(
+      normalizedStatus.value,
+    )
+  ) {
     return 'success'
   }
 
@@ -23,7 +27,7 @@ const variant = computed(() => {
     return 'warning'
   }
 
-  if (['absent', 'not_checked_in'].includes(normalizedStatus.value)) {
+  if (['absent', 'not_checked_in', 'rejected'].includes(normalizedStatus.value)) {
     return 'danger'
   }
 
