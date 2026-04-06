@@ -6,6 +6,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
 import BaseTextarea from '@/components/ui/BaseTextarea.vue'
+import { formatDateTime12h } from '@/utils/time'
 
 import type {
   AttendanceOutageRecoveryEmployee,
@@ -178,15 +179,7 @@ function mapSkippedRow(employee: AttendanceOutageRecoveryEmployee, details?: str
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return '--'
-
-  const parsedValue = new Date(value)
-
-  if (Number.isNaN(parsedValue.getTime())) {
-    return String(value)
-  }
-
-  return parsedValue.toLocaleString()
+  return formatDateTime12h(value)
 }
 
 function humanize(value: string) {

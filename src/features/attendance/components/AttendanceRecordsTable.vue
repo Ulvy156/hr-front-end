@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
+import { formatTime12h } from '@/utils/time'
 
 import type { AttendanceListResponse, AttendanceRecord } from '../interface/attendance.interface'
 import AttendanceStatusBadge from './AttendanceStatusBadge.vue'
@@ -8,6 +9,10 @@ import AttendanceStatusBadge from './AttendanceStatusBadge.vue'
 const props = defineProps<{
   records: AttendanceListResponse | null
   canModify?: boolean
+  showEmployeeColumns?: boolean
+  showPagination?: boolean
+  title?: string
+  description?: string
 }>()
 
 const emit = defineEmits<{
@@ -19,15 +24,20 @@ const emit = defineEmits<{
 const columns = computed<BaseTableColumn[]>(() => {
   const baseColumns: BaseTableColumn[] = [
     { key: 'attendanceDate', label: 'Date' },
-    { key: 'employeeName', label: 'Employee' },
-    { key: 'department', label: 'Department' },
     { key: 'checkInTime', label: 'Check In' },
     { key: 'checkOutTime', label: 'Check Out' },
+    { key: 'workedMinutes', label: 'Worked' },
     { key: 'lateMinutes', label: 'Late' },
+    { key: 'earlyLeaveMinutes', label: 'Early Leave' },
     { key: 'overtimeMinutes', label: 'Overtime' },
     { key: 'status', label: 'Status' },
     { key: 'correctionStatus', label: 'Correction' },
   ]
+
+  if (props.showEmployeeColumns ?? true) {
+    baseColumns.splice(1, 0, { key: 'employeeName', label: 'Employee' })
+    baseColumns.splice(2, 0, { key: 'department', label: 'Department' })
+  }
 
   if (props.canModify) {
     baseColumns.push({ key: 'actions', label: 'Actions', align: 'right' })
@@ -44,7 +54,9 @@ const rows = computed(() =>
     department: record.employee?.department ?? '--',
     checkInTime: record.checkInTime ?? '--',
     checkOutTime: record.checkOutTime ?? '--',
+    workedMinutes: record.workedMinutes ?? 0,
     lateMinutes: record.lateMinutes ?? 0,
+    earlyLeaveMinutes: record.earlyLeaveMinutes ?? 0,
     overtimeMinutes: record.overtimeMinutes ?? 0,
     status: record.status ?? 'none',
     correctionStatus: record.correctionStatus ?? 'none',
@@ -71,39 +83,6 @@ const changePage = (page: number | null | undefined) => {
   emit('pageChange', page)
 }
 
-const formatDisplayTime = (value: unknown) => {
-  if (!value || value === '--') {
-    return '--'
-  }
-
-  const normalizedValue = String(value)
-
-  if (normalizedValue.includes('T')) {
-    const parsedDate = new Date(normalizedValue)
-
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      })
-    }
-  }
-
-  const timeMatch = normalizedValue.match(/^(\d{2}):(\d{2})/)
-
-  if (!timeMatch) {
-    return normalizedValue
-  }
-
-  const hours = Number(timeMatch[1])
-  const minutes = timeMatch[2]
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const displayHours = hours % 12 || 12
-
-  return `${displayHours}:${minutes} ${period}`
-}
-
 const formatMinutes = (value: unknown) => {
   const minutes = Number(value ?? 0)
 
@@ -111,61 +90,29 @@ const formatMinutes = (value: unknown) => {
     return '--'
   }
 
-  return `${minutes} min`
+  if (minutes < 60) {
+    return `${minutes}m`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+
+  if (remainingMinutes === 0) {
+    return `${hours}h`
+  }
+
+  return `${hours}h ${remainingMinutes}m`
 }
 
-const parseTimeToMinutes = (value: string | null | undefined) => {
-  if (!value || value === '--') {
-    return null
-  }
-
-  if (value.includes('T')) {
-    const parsedDate = new Date(value)
-
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return parsedDate.getHours() * 60 + parsedDate.getMinutes()
-    }
-  }
-
-  const timeMatch = value.match(/^(\d{2}):(\d{2})/)
-
-  if (!timeMatch) {
-    return null
-  }
-
-  return Number(timeMatch[1]) * 60 + Number(timeMatch[2])
-}
-
-const resolveLateMinutes = (record: AttendanceRecord) => {
-  const backendLateMinutes = Number(record.lateMinutes ?? 0)
-
-  if (Number.isFinite(backendLateMinutes) && backendLateMinutes > 0) {
-    return backendLateMinutes
-  }
-
-  if (record.status !== 'late') {
-    return Math.max(backendLateMinutes, 0)
-  }
-
-  const checkInMinutes = parseTimeToMinutes(record.checkInTime)
-
-  if (checkInMinutes === null) {
-    return Math.max(backendLateMinutes, 0)
-  }
-
-  const workStartMinutes = 8 * 60
-
-  return Math.max(checkInMinutes - workStartMinutes, 0)
-}
 </script>
 
 <template>
   <section class="records-section">
     <div class="records-section-header">
       <div>
-        <h3 class="records-section-title">Attendance Records</h3>
+        <h3 class="records-section-title">{{ title ?? 'Attendance Records' }}</h3>
         <p class="records-section-text">
-          View attendance records, open details, and move through each page of results.
+          {{ description ?? 'View attendance records, open details, and move through each page of results.' }}
         </p>
       </div>
 
@@ -190,15 +137,23 @@ const resolveLateMinutes = (record: AttendanceRecord) => {
       </template>
 
       <template #cell-checkInTime="{ value }">
-        {{ formatDisplayTime(value) }}
+        {{ formatTime12h(String(value ?? '--')) }}
       </template>
 
       <template #cell-checkOutTime="{ value }">
-        {{ formatDisplayTime(value) }}
+        {{ formatTime12h(String(value ?? '--')) }}
       </template>
 
-      <template #cell-lateMinutes="{ row }">
-        {{ formatMinutes(resolveLateMinutes(row.raw as AttendanceRecord)) }}
+      <template #cell-workedMinutes="{ value }">
+        {{ formatMinutes(value) }}
+      </template>
+
+      <template #cell-lateMinutes="{ value }">
+        {{ formatMinutes(value) }}
+      </template>
+
+      <template #cell-earlyLeaveMinutes="{ value }">
+        {{ formatMinutes(value) }}
       </template>
 
       <template #cell-overtimeMinutes="{ value }">
@@ -221,7 +176,7 @@ const resolveLateMinutes = (record: AttendanceRecord) => {
     </BaseTable>
 
     <div
-      v-if="(records?.last_page ?? 1) > 1"
+      v-if="(showPagination ?? true) && (records?.last_page ?? 1) > 1"
       class="records-pagination"
     >
       <p class="records-pagination-text">

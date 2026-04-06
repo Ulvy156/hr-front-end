@@ -2,6 +2,7 @@
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
+import { formatDateTime12h } from '@/utils/time'
 
 import type {
   AttendanceAuditListResponse,
@@ -65,9 +66,7 @@ const changePage = (page: number | null | undefined) => {
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return '--'
-
-  return new Date(value).toLocaleString()
+  return formatDateTime12h(value)
 }
 </script>
 

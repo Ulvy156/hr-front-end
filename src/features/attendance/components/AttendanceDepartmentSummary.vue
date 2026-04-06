@@ -28,6 +28,27 @@ const tableRows = computed(() =>
     totalWorkedMinutes: row.totalWorkedMinutes ?? 0,
   })),
 )
+
+const formatMinutes = (value: unknown) => {
+  const minutes = Number(value ?? 0)
+
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return '--'
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+
+  if (remainingMinutes === 0) {
+    return `${hours}h`
+  }
+
+  return `${hours}h ${remainingMinutes}m`
+}
 </script>
 
 <template>
@@ -42,7 +63,11 @@ const tableRows = computed(() =>
         :columns="columns"
         :rows="tableRows"
         empty-text="No department attendance summary is available for the selected filters."
-      />
+      >
+        <template #cell-totalWorkedMinutes="{ value }">
+          {{ formatMinutes(value) }}
+        </template>
+      </BaseTable>
     </div>
   </section>
 </template>

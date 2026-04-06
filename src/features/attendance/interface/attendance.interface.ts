@@ -274,6 +274,7 @@ export interface CorrectionRequest {
   id: number
   attendanceId: number
   attendanceDate: string | null
+  requestDate: string | null
   employee?: AttendanceEmployeeRef
   requestedCheckInTime: string | null
   requestedCheckOutTime: string | null
@@ -306,14 +307,14 @@ export interface AttendanceCorrectionPayload {
 }
 
 export interface CorrectionRequestStorePayload {
-  attendance_id: number
+  request_date: string
   requested_check_in_time?: string | null
   requested_check_out_time?: string | null
   reason: string
 }
 
 export interface MissingAttendanceRequestStorePayload {
-  attendance_date: string
+  request_date: string
   requested_check_in_time?: string | null
   requested_check_out_time?: string | null
   reason: string

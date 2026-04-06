@@ -10,6 +10,7 @@ import {
 defineProps<{
   nextAction: string | null
   correctionStatus: string | null
+  canCorrectionAction?: boolean
   actionLoading?: boolean
   requestLoading?: boolean
   actionError?: string
@@ -46,11 +47,16 @@ defineEmits<{
         <BaseButton variant="ghost" @click="$emit('scanAction')">
           Open QR Scan Flow
         </BaseButton>
-        <BaseButton :loading="requestLoading" variant="secondary" @click="$emit('correctionAction')">
-          Fix Attendance Time
+        <BaseButton
+          :disabled="!canCorrectionAction"
+          :loading="requestLoading"
+          variant="secondary"
+          @click="$emit('correctionAction')"
+        >
+          Correction Request
         </BaseButton>
         <BaseButton :loading="requestLoading" variant="ghost" @click="$emit('missingAttendanceAction')">
-          Report Missing Attendance
+          Missing Attendance Request
         </BaseButton>
       </div>
 
@@ -64,7 +70,12 @@ defineEmits<{
       <p class="employee-actions-helper">
         Current correction status:
         <strong>{{ correctionStatus ?? 'none' }}</strong
-        >. Use the buttons above when you are ready to record today’s attendance.
+        >.
+        {{
+          canCorrectionAction
+            ? 'Use Correction Request for dates that already have attendance recorded.'
+            : 'Correction Request is not available right now.'
+        }}
       </p>
     </div>
   </BaseCard>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
+import { formatDateTime12h, formatTime12h } from '@/utils/time'
 
 import type {
   CorrectionRequest,
@@ -65,20 +66,11 @@ const changePage = (page: number | null | undefined) => {
 function formatDateTime(value: string | null | undefined, timeOnly = false) {
   if (!value) return '--'
 
-  const parsedValue = new Date(value)
-
-  if (Number.isNaN(parsedValue.getTime())) {
-    return timeOnly ? String(value).slice(0, 5) : String(value)
-  }
-
   if (timeOnly) {
-    return parsedValue.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatTime12h(value)
   }
 
-  return parsedValue.toLocaleString()
+  return formatDateTime12h(value)
 }
 </script>
 

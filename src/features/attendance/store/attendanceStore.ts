@@ -50,7 +50,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     try {
       const response = await attendanceService.getEmployeeAttendanceSummary()
       employeeData.value = response.data
-      organizationData.value = null
       lastUpdated.value = new Date().toISOString()
 
       return response
@@ -82,7 +81,6 @@ export const useAttendanceStore = defineStore('attendance', () => {
     try {
       const response = await attendanceService.getMonthlySummary(params)
       organizationData.value = response.data
-      employeeData.value = null
       lastUpdated.value = new Date().toISOString()
 
       return response

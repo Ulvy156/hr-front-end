@@ -25,15 +25,20 @@ import BaseSpinner from "@/components/ui/BaseSpinner.vue";
 import DashboardSummaryCards, {
   type DashboardSummaryCardItem,
 } from "@/features/dashboard/components/DashboardSummaryCards.vue";
+import { formatDateTime12h, formatTime12h } from "@/utils/time";
 
 import AttendanceDepartmentSummary from "../components/AttendanceDepartmentSummary.vue";
+import AttendanceCorrectionRequestModal from "../components/AttendanceCorrectionRequestModal.vue";
 import AttendanceCorrectionRequests from "../components/AttendanceCorrectionRequests.vue";
+import AttendanceCorrectionReviewModal from "../components/AttendanceCorrectionReviewModal.vue";
 import AttendanceEmployeeActions from "../components/AttendanceEmployeeActions.vue";
+import AttendanceMissingRequestModal from "../components/AttendanceMissingRequestModal.vue";
 import AttendanceOutageRecoveryPanel from "../components/AttendanceOutageRecoveryPanel.vue";
 import AttendancePlaceholderSection from "../components/AttendancePlaceholderSection.vue";
 import AttendanceRecordsTable from "../components/AttendanceRecordsTable.vue";
 import AttendanceStatusBadge from "../components/AttendanceStatusBadge.vue";
 import { useAttendance } from "../composable/useAttendance";
+import type { CorrectionRequest } from "../interface/attendance.interface";
 
 type AttendanceRequestErrorPayload = {
   message?: string;
@@ -43,14 +48,20 @@ type AttendanceRequestErrorPayload = {
 const {
   attendanceList,
   applyOutageRecovery,
+  checkIn,
+  checkOut,
   correctionRequests,
+  employeeAttendanceHistory,
   employeeData,
   error,
   fetchAttendanceList,
   fetchCorrectionRequests,
   fetchEmployeeAttendance,
+  fetchEmployeeAttendanceHistory,
+  fetchEmployeeTodayAttendance,
   fetchOutageRecoveryPreview,
   fetchOrganizationAttendance,
+  exportExcel,
   isLoading,
   isOutageRecoveryApplying,
   isOutageRecoveryLoading,
@@ -58,6 +69,9 @@ const {
   outageRecoveryError,
   outageRecoveryPreview,
   organizationData,
+  reviewCorrectionRequest,
+  submitCorrectionRequest,
+  submitMissingAttendanceRequest,
   role,
   hasEmployeeRole,
   hasHrRole,
@@ -65,10 +79,11 @@ const {
   hasManagementRole,
 } = useAttendance();
 
+const router = useRouter();
 const selectedMonth = ref(getCurrentMonth());
 const selectedDepartmentId = ref<string | number | undefined>(undefined);
 const statusFilter = ref("");
-const employeeSearch = ref("");
+const employeeIdFilter = ref("");
 const hrManagementTab = ref("records");
 const attendanceListPage = ref(1);
 const correctionRequestsPage = ref(1);
@@ -82,6 +97,22 @@ const outageRecoveryCheckInAt = ref<Date | null>(null);
 const outageRecoveryCheckOutAt = ref<Date | null>(null);
 const selectedOutageRecoveryEmployeeIds = ref<number[]>([]);
 const outageRecoveryNotes = ref("");
+const selfServiceActionLoading = ref(false);
+const selfServiceActionError = ref("");
+const selfServiceActionSuccess = ref("");
+const selfServiceRequestLoading = ref(false);
+const isExportingExcel = ref(false);
+const isCorrectionRequestModalOpen = ref(false);
+const isMissingRequestModalOpen = ref(false);
+const isCorrectionReviewModalOpen = ref(false);
+const isCorrectionReviewSubmitting = ref(false);
+const correctionRequestDate = ref<string | null>(null);
+const correctionRequestAttendanceOptions = ref<
+  Array<{
+    requestDate: string;
+  }>
+>([]);
+const selectedCorrectionRequest = ref<CorrectionRequest | null>(null);
 
 const hasData = computed(() => {
   if (hasEmployeeRole.value && !hasManagementRole.value) {
@@ -98,13 +129,14 @@ const hasData = computed(() => {
 const formattedLastUpdated = computed(() => {
   if (!lastUpdated.value) return "Never";
 
-  return new Date(lastUpdated.value).toLocaleString();
+  return formatDateTime12h(lastUpdated.value);
 });
 
 const employeeIdentity = computed(() => employeeData.value?.employee ?? null);
 const employeeToday = computed(() => employeeData.value?.today ?? null);
 const employeeWeek = computed(() => employeeData.value?.thisWeek ?? null);
 const employeeMonth = computed(() => employeeData.value?.thisMonth ?? null);
+const canOpenCorrectionRequest = computed(() => employeeData.value !== null);
 
 const departmentFilterOptions = computed<BaseDropdownOption[]>(() =>
   (organizationData.value?.byDepartment ?? []).map((department) => ({
@@ -317,6 +349,7 @@ const loadAttendance = async () => {
           };
 
       await fetchOrganizationAttendance(params);
+      await fetchEmployeeAttendance().catch(() => undefined);
 
       if (!hasHrRole.value) {
         return;
@@ -336,10 +369,214 @@ const loadAttendance = async () => {
     }
 
     if (hasEmployeeRole.value) {
-      await fetchEmployeeAttendance();
+      await Promise.all([
+        fetchEmployeeAttendance(),
+        fetchEmployeeAttendanceHistory({ per_page: 100 }).catch(() => undefined),
+      ]);
     }
   } catch {
     // Error state is handled by the attendance store.
+  }
+};
+
+const refreshSelfServiceAttendance = async () => {
+  await fetchEmployeeAttendance().catch(() => undefined);
+  await fetchEmployeeAttendanceHistory({ per_page: 100 }).catch(() => undefined);
+
+  if (!hasManagementRole.value) {
+    return;
+  }
+
+  const params = hasHrRole.value
+    ? {
+        month: selectedMonth.value,
+        department_id:
+          selectedDepartmentId.value !== undefined
+            ? Number(selectedDepartmentId.value)
+            : undefined,
+      }
+    : {
+        month: selectedMonth.value,
+      };
+
+  await fetchOrganizationAttendance(params).catch(() => undefined);
+};
+
+const handleSelfServiceAction = async () => {
+  const nextAction = employeeToday.value?.nextAction;
+
+  if (nextAction !== "check_in" && nextAction !== "check_out") {
+    selfServiceActionError.value = "Attendance action is not available right now.";
+    selfServiceActionSuccess.value = "";
+    return;
+  }
+
+  selfServiceActionLoading.value = true;
+  selfServiceActionError.value = "";
+  selfServiceActionSuccess.value = "";
+
+  try {
+    const response = nextAction === "check_in" ? await checkIn() : await checkOut();
+
+    selfServiceActionSuccess.value = response.message;
+    await fetchEmployeeTodayAttendance().catch(() => undefined);
+    await refreshSelfServiceAttendance();
+  } catch (err) {
+    selfServiceActionError.value = getAttendanceRequestErrorMessage(err);
+  } finally {
+    selfServiceActionLoading.value = false;
+  }
+};
+
+const handleOpenScanFlow = async () => {
+  await router.push({ name: "attendance-scan" });
+};
+
+const handleOpenCorrectionRequest = async () => {
+  if (!canOpenCorrectionRequest.value) {
+    ElMessage.warning("Unable to load attendance history for a correction request right now.");
+    return;
+  }
+
+  selfServiceRequestLoading.value = true;
+
+  try {
+    const history = await fetchEmployeeAttendanceHistory({ per_page: 100 });
+    const eligibleRecords = history.data.filter(
+      (record) =>
+        record.correctionStatus !== "pending" && record.correctionStatus !== "approved",
+    );
+
+    if (eligibleRecords.length === 0) {
+      ElMessage.warning(
+        history.data.length === 0
+          ? "No attendance records are available for a correction request yet."
+          : "There are no attendance records available for a new correction request right now.",
+      );
+      return;
+    }
+
+    correctionRequestAttendanceOptions.value = eligibleRecords.map((record) => ({
+      requestDate: record.attendanceDate,
+    }));
+    correctionRequestDate.value =
+      eligibleRecords.find((record) => record.attendanceDate === employeeToday.value?.attendanceDate)
+        ?.attendanceDate ?? eligibleRecords[0]?.attendanceDate ?? null;
+    isCorrectionRequestModalOpen.value = true;
+  } catch (err) {
+    ElMessage.error(getAttendanceRequestErrorMessage(err));
+  } finally {
+    selfServiceRequestLoading.value = false;
+  }
+};
+
+const handleOpenMissingAttendanceRequest = async () => {
+  await fetchEmployeeAttendanceHistory({ per_page: 100 }).catch(() => undefined);
+  isMissingRequestModalOpen.value = true;
+};
+
+const handleSubmitCorrectionRequest = async (payload: {
+  request_date: string;
+  requested_check_in_time?: string | null;
+  requested_check_out_time?: string | null;
+  reason: string;
+}) => {
+  if (!payload.request_date) {
+    ElMessage.error("Request date is required.");
+    return;
+  }
+
+  selfServiceRequestLoading.value = true;
+
+  try {
+    const response = await submitCorrectionRequest({
+      request_date: payload.request_date,
+      requested_check_in_time: payload.requested_check_in_time ?? null,
+      requested_check_out_time: payload.requested_check_out_time ?? null,
+      reason: payload.reason,
+    });
+
+    ElMessage.success(response.message);
+    isCorrectionRequestModalOpen.value = false;
+    correctionRequestDate.value = null;
+    correctionRequestAttendanceOptions.value = [];
+    await refreshSelfServiceAttendance();
+  } catch (err) {
+    ElMessage.error(getAttendanceRequestErrorMessage(err));
+  } finally {
+    selfServiceRequestLoading.value = false;
+  }
+};
+
+const handleSubmitMissingAttendanceRequest = async (payload: {
+  request_date: string;
+  requested_check_in_time?: string | null;
+  requested_check_out_time?: string | null;
+  reason: string;
+}) => {
+  selfServiceRequestLoading.value = true;
+
+  try {
+    const response = await submitMissingAttendanceRequest({
+      request_date: payload.request_date,
+      requested_check_in_time: payload.requested_check_in_time ?? null,
+      requested_check_out_time: payload.requested_check_out_time ?? null,
+      reason: payload.reason,
+    });
+
+    ElMessage.success(response.message);
+    isMissingRequestModalOpen.value = false;
+  } catch (err) {
+    ElMessage.error(getAttendanceRequestErrorMessage(err));
+  } finally {
+    selfServiceRequestLoading.value = false;
+  }
+};
+
+const closeCorrectionRequestModal = () => {
+  isCorrectionRequestModalOpen.value = false;
+  correctionRequestDate.value = null;
+  correctionRequestAttendanceOptions.value = [];
+};
+
+const closeMissingRequestModal = () => {
+  isMissingRequestModalOpen.value = false;
+};
+
+const handleOpenCorrectionReview = (request: CorrectionRequest) => {
+  selectedCorrectionRequest.value = request;
+  isCorrectionReviewModalOpen.value = true;
+};
+
+const closeCorrectionReviewModal = () => {
+  isCorrectionReviewModalOpen.value = false;
+  selectedCorrectionRequest.value = null;
+};
+
+const handleSubmitCorrectionReview = async (payload: {
+  id: number;
+  status: "approved" | "rejected";
+  review_note?: string | null;
+}) => {
+  isCorrectionReviewSubmitting.value = true;
+
+  try {
+    const response = await reviewCorrectionRequest(payload.id, {
+      status: payload.status,
+      review_note: payload.review_note ?? null,
+    });
+
+    ElMessage.success(response.message);
+    closeCorrectionReviewModal();
+    await Promise.all([
+      fetchCorrectionRequests(buildCorrectionRequestParams(correctionRequestsPage.value)),
+      fetchAttendanceList(buildAttendanceListParams(attendanceListPage.value)).catch(() => undefined),
+      refreshSelfServiceAttendance().catch(() => undefined),
+    ]);
+  } catch (err) {
+    ElMessage.error(getAttendanceRequestErrorMessage(err));
+  } finally {
+    isCorrectionReviewSubmitting.value = false;
   }
 };
 
@@ -347,6 +584,52 @@ const handleApplyFilters = async () => {
   attendanceListPage.value = 1;
   correctionRequestsPage.value = 1;
   await loadAttendance();
+};
+
+const downloadExportFile = (blob: Blob, filename: string) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 0);
+};
+
+function buildAttendanceExportParams() {
+  const dateRange = getMonthDateRange(selectedMonth.value);
+  const employeeId = Number(employeeIdFilter.value);
+
+  return {
+    month: selectedMonth.value || undefined,
+    employee_id:
+      Number.isFinite(employeeId) && employeeId > 0 ? employeeId : undefined,
+    department_id:
+      selectedDepartmentId.value !== undefined
+        ? Number(selectedDepartmentId.value)
+        : undefined,
+    status: statusFilter.value || undefined,
+    from_date: dateRange.from,
+    to_date: dateRange.to,
+  };
+}
+
+const handleExportExcel = async () => {
+  isExportingExcel.value = true;
+
+  try {
+    const response = await exportExcel(buildAttendanceExportParams());
+    downloadExportFile(response.blob, response.filename);
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : "Failed to export attendance.");
+  } finally {
+    isExportingExcel.value = false;
+  }
 };
 
 const syncOutageRecoveryPreview = ({
@@ -545,9 +828,7 @@ function formatDate(value: string | null | undefined) {
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return "--";
-
-  return value.slice(0, 5);
+  return formatTime12h(value);
 }
 
 function formatMinutes(value: number | null | undefined) {
@@ -585,8 +866,11 @@ function buildOutageRecoveryApplyTimePayload() {
 
 function buildAttendanceListParams(page = 1) {
   const dateRange = getMonthDateRange(selectedMonth.value);
+  const employeeId = Number(employeeIdFilter.value);
 
   return {
+    employee_id:
+      Number.isFinite(employeeId) && employeeId > 0 ? employeeId : undefined,
     department_id:
       selectedDepartmentId.value !== undefined
         ? Number(selectedDepartmentId.value)
@@ -687,13 +971,22 @@ function formatDateTimeWithOffset(value: Date | null) {
 
       <div class="attendance-header-actions">
         <p class="attendance-last-updated">Last updated: {{ formattedLastUpdated }}</p>
+        <BaseButton
+          v-if="role"
+          :disabled="!hasData || isLoading"
+          :loading="isExportingExcel"
+          variant="ghost"
+          @click="handleExportExcel"
+        >
+          Export Excel
+        </BaseButton>
         <BaseButton :loading="isLoading" variant="secondary" @click="loadAttendance">
           Refresh
         </BaseButton>
       </div>
     </div>
 
-    <div v-if="isLoading" class="attendance-loading">
+    <div v-if="isLoading && !hasData" class="attendance-loading">
       <BaseCard v-for="index in 6" :key="index" class="attendance-skeleton-card">
         <div class="attendance-skeleton-body">
           <div class="attendance-skeleton-line short" />
@@ -788,8 +1081,17 @@ function formatDateTimeWithOffset(value: Date | null) {
       </BaseCard>
 
       <AttendanceEmployeeActions
+        :action-error="selfServiceActionError"
+        :action-loading="selfServiceActionLoading"
+        :action-success="selfServiceActionSuccess"
+        :can-correction-action="canOpenCorrectionRequest"
         :correction-status="employeeToday?.correctionStatus ?? 'none'"
         :next-action="employeeToday?.nextAction ?? null"
+        :request-loading="selfServiceRequestLoading"
+        @correction-action="handleOpenCorrectionRequest"
+        @missing-attendance-action="handleOpenMissingAttendanceRequest"
+        @primary-action="handleSelfServiceAction"
+        @scan-action="handleOpenScanFlow"
       />
 
       <section class="attendance-summary-section">
@@ -807,9 +1109,42 @@ function formatDateTimeWithOffset(value: Date | null) {
         </div>
         <DashboardSummaryCards :items="employeeMonthCards" tone="secondary" />
       </section>
+
+      <section class="attendance-summary-section">
+        <AttendanceRecordsTable
+          :records="employeeAttendanceHistory"
+          :show-employee-columns="false"
+          :show-pagination="false"
+          description="Review your recent attendance records, status, and correction state."
+          title="My Attendance History"
+        />
+      </section>
     </template>
 
     <template v-else-if="hasManagementRole && organizationData">
+      <section v-if="hasHrRole && employeeData" class="attendance-summary-section">
+        <div class="attendance-section-copy">
+          <h3 class="attendance-section-title">My Attendance Actions</h3>
+          <p class="attendance-section-text">
+            HR can also use self-service check-in and check-out from this page.
+          </p>
+        </div>
+
+        <AttendanceEmployeeActions
+          :action-error="selfServiceActionError"
+          :action-loading="selfServiceActionLoading"
+          :action-success="selfServiceActionSuccess"
+          :can-correction-action="canOpenCorrectionRequest"
+          :correction-status="employeeToday?.correctionStatus ?? 'none'"
+          :next-action="employeeToday?.nextAction ?? null"
+          :request-loading="selfServiceRequestLoading"
+          @correction-action="handleOpenCorrectionRequest"
+          @missing-attendance-action="handleOpenMissingAttendanceRequest"
+          @primary-action="handleSelfServiceAction"
+          @scan-action="handleOpenScanFlow"
+        />
+      </section>
+
       <BaseCard class="attendance-context-card">
         <div class="attendance-context-body">
           <div>
@@ -842,8 +1177,7 @@ function formatDateTimeWithOffset(value: Date | null) {
         <div class="attendance-section-copy">
           <h3 class="attendance-section-title">Management Filters</h3>
           <p class="attendance-section-text">
-            Monthly and department filters use real summary data. Status and employee search are
-            reserved until detailed endpoints are connected.
+            Use supported attendance filters to narrow the records shown for this month.
           </p>
         </div>
 
@@ -867,18 +1201,18 @@ function formatDateTimeWithOffset(value: Date | null) {
               v-model="statusFilter"
               :options="statusFilterOptions"
               clearable
-              disabled
               label="Status"
-              placeholder="Pending API connection"
+              placeholder="All statuses"
             />
             <BaseInput
-              v-model="employeeSearch"
-              disabled
-              label="Employee Search"
-              placeholder="Pending API connection"
+              v-model="employeeIdFilter"
+              label="Employee ID"
+              placeholder="Filter by employee ID"
             />
             <div class="attendance-filters-actions">
-              <BaseButton variant="secondary" @click="handleApplyFilters">Apply Filters</BaseButton>
+              <BaseButton :loading="isLoading" variant="secondary" @click="handleApplyFilters">
+                Apply Filters
+              </BaseButton>
             </div>
           </div>
         </BaseCard>
@@ -910,6 +1244,7 @@ function formatDateTimeWithOffset(value: Date | null) {
                 :embedded="true"
                 :requests="correctionRequests"
                 @page-change="handleCorrectionRequestsPageChange"
+                @review-click="handleOpenCorrectionReview"
               />
             </ElTabPane>
 
@@ -945,6 +1280,33 @@ function formatDateTimeWithOffset(value: Date | null) {
         title="Audit & Oversight"
       />
     </template>
+
+    <AttendanceCorrectionRequestModal
+      :request-date-options="correctionRequestAttendanceOptions"
+      :initial-request-date="correctionRequestDate"
+      :open="isCorrectionRequestModalOpen"
+      :submitting="selfServiceRequestLoading"
+      @close="closeCorrectionRequestModal"
+      @submit="handleSubmitCorrectionRequest"
+    />
+
+    <AttendanceMissingRequestModal
+      :existing-attendance-dates="
+        (employeeAttendanceHistory?.data ?? []).map((record) => record.attendanceDate)
+      "
+      :open="isMissingRequestModalOpen"
+      :submitting="selfServiceRequestLoading"
+      @close="closeMissingRequestModal"
+      @submit="handleSubmitMissingAttendanceRequest"
+    />
+
+    <AttendanceCorrectionReviewModal
+      :open="isCorrectionReviewModalOpen"
+      :request="selectedCorrectionRequest"
+      :submitting="isCorrectionReviewSubmitting"
+      @close="closeCorrectionReviewModal"
+      @submit="handleSubmitCorrectionReview"
+    />
   </main>
 </template>
 

@@ -2,6 +2,7 @@
 import { ROLES, isOneOfRoles, type Role } from '@/constants/roles'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { formatTime12h } from '@/utils/time'
 
 import type {
   EmployeeDashboardRecord,
@@ -85,8 +86,8 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
             <td>{{ record.date }}</td>
             <td v-if="hasEmployeeColumn">{{ getEmployeeName(record) }}</td>
             <td v-if="hasEmployeeColumn">{{ getEmployeeDepartment(record) }}</td>
-            <td>{{ record.checkInTime ?? '--' }}</td>
-            <td>{{ record.checkOutTime ?? '--' }}</td>
+            <td>{{ formatTime12h(record.checkInTime) }}</td>
+            <td>{{ formatTime12h(record.checkOutTime) }}</td>
             <td>
               <span :class="statusClass(record.status)" class="status-badge">
                 {{ formatStatus(record.status) }}

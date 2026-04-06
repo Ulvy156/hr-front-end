@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, Clock3, QrCode, ShieldAlert } from 'lucide-vue
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
+import { formatDateTime12h } from '@/utils/time'
 
 import { useAttendance } from '../composable/useAttendance'
 import type { EmployeeAttendanceTodayDetail } from '../interface/attendance.interface'
@@ -35,9 +36,7 @@ const displayedAction = computed(() =>
 )
 
 const displayedTimestamp = computed(() => {
-  if (!actionTimestamp.value) return '--'
-
-  return new Date(actionTimestamp.value).toLocaleString()
+  return formatDateTime12h(actionTimestamp.value)
 })
 
 const displayedNextAction = computed(() => {
