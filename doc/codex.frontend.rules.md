@@ -17,6 +17,7 @@ Before writing any code, follow these rules exactly.
   - table actions
   - form sections
   - filters
+  - use veevalidate package to validate input
 - If it already exists, reuse or extend it
 - Do not duplicate logic across pages or features
 
@@ -123,5 +124,42 @@ Before writing any code, follow these rules exactly.
 - Keep conditions readable
 - Extend existing patterns instead of creating one-off shortcuts
 
-Final instruction:
+19. Performance rules
+- Do not make unnecessary API calls
+- Avoid duplicate requests for the same data on the same page
+- Reuse centralized state when data already exists in Pinia, composables, or cache
+- Debounce search and filter inputs when they trigger API requests
+- Do not refetch whole pages after every small action unless necessary
+- Prefer updating local state safely instead of always reloading everything
+- Keep computed logic out of templates when it is expensive
+- Avoid watchers that cause repeated API calls or unnecessary rerenders
+- Lazy load heavy pages or modules if the project already supports that pattern
+- Render heavy components only when they are actually needed
+- Keep tables efficient, especially when handling large datasets
+- Reuse shared formatters and mappers instead of recalculating the same thing in many places
+- Scope detail/modal fetches only to the data actually needed
+- Do not load hidden tabs or hidden sections eagerly unless required
+- If a page needs to call multiple APIs at the same time, use Promise.all (or equivalent) to run them in parallel instead of sequential calls
+
+20. Vue reactive function rules (ref vs reactive)
+- Use ref for primitive values (string, number, boolean)
+- Use reactive for objects with multiple related properties
+- Do not wrap everything in reactive unnecessarily
+- Prefer ref as default unless managing grouped object state
+- Do not mix ref and reactive incorrectly (avoid nested reactive confusion)
+- Always destructure reactive state carefully using toRefs or equivalent to avoid losing reactivity
+- Do not create unnecessary reactive layers if data can stay static
+- Keep state minimal and only reactive when needed
+- Avoid deep nested reactive objects that are hard to track and debug
+
+21. Advanced reactivity rules (shallowRef, etc.)
+- Use shallowRef when storing large objects, API responses, or third-party data where deep reactivity is  not needed
+- Prefer shallowRef for performance-sensitive data to avoid unnecessary deep tracking
+- Do not use deep reactive structures for large datasets like tables or logs
+- Use computed for derived state instead of manually syncing values
+- Avoid overusing watchers; prefer computed or explicit function calls
+- Use watch only when reacting to specific changes (e.g., trigger API on filter change)
+- Do not use watchers for logic that can run directly in events or lifecycle hooks
+
+# Final instruction:
 Before implementing anything, first scan the existing project structure and find similar patterns to reuse. If a similar implementation already exists anywhere in the project, extend it instead of rebuilding it from scratch.
