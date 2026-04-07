@@ -1,4 +1,10 @@
 # Frontend rules for this project (STRICT)
+## Scope restriction (frontend only)
+- This task is strictly frontend only
+- Do not modify backend code, database, API, or server logic
+- Do not suggest changes to API structure or backend implementation
+- If required data is missing, assume backend already provides it via Postman collection
+- Any backend modification is considered incorrect
 
 Before writing any code, follow these rules exactly.
 
