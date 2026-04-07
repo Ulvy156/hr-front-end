@@ -17,7 +17,7 @@ Before writing any code, follow these rules exactly.
   - table actions
   - form sections
   - filters
-  - use veevalidate package to validate input
+  - use veevalidate package to validate user input
 - If it already exists, reuse or extend it
 - Do not duplicate logic across pages or features
 
@@ -140,6 +140,9 @@ Before writing any code, follow these rules exactly.
 - Scope detail/modal fetches only to the data actually needed
 - Do not load hidden tabs or hidden sections eagerly unless required
 - If a page needs to call multiple APIs at the same time, use Promise.all (or equivalent) to run them in parallel instead of sequential calls
+- You must reuse existing reusable components in the project. 
+If a similar component already exists, you must use or extend it. 
+Creating a new component with overlapping functionality is considered incorrect.
 
 20. Vue reactive function rules (ref vs reactive)
 - Use ref for primitive values (string, number, boolean)
