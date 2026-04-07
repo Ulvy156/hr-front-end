@@ -164,5 +164,52 @@ Creating a new component with overlapping functionality is considered incorrect.
 - Use watch only when reacting to specific changes (e.g., trigger API on filter change)
 - Do not use watchers for logic that can run directly in events or lifecycle hooks
 
+## 22. UX rules (user experience)
+
+- UI must be intuitive and require minimal user thinking
+- Always prioritize clarity over clever design
+
+### Interaction
+- Every action must have clear feedback (loading, success, error)
+- Buttons must clearly indicate their purpose
+- Dangerous actions must be visually distinct (e.g. delete)
+
+### User flow
+- Avoid unnecessary steps for common actions
+- Keep primary actions easy to access and visible
+- Do not hide important actions inside deep menus unless necessary
+
+### Feedback
+- Show loading indicators immediately when action starts
+- Show success/error feedback after actions complete
+- Do not leave user unsure about system state
+
+### Readability
+- Important information must be easy to scan
+- Use spacing and grouping to improve clarity
+- Avoid dense or cluttered layouts
+
+### Consistency
+- Same action = same behavior across the app
+- Same data = same format everywhere
+
+### Error handling UX
+- Show user-friendly error messages
+- Do not expose raw backend errors unless needed
+- Guide user on what to do next
+
+### Performance UX
+- Avoid blocking UI during background operations
+- Use partial loading where possible instead of full reload
+
+### UI styling rules (colors & backgrounds)
+
+- Always prioritize project-defined custom CSS classes for colors, backgrounds, and design tokens
+- Do not use arbitrary Tailwind color classes (e.g. bg-blue-500, text-red-600) if a custom class already exists
+- Reuse existing project styles (e.g. .bg-primary, .text-muted, .card-bg, etc.) before using Tailwind utilities
+- Tailwind should be used for layout, spacing, and structure, not for overriding the design system
+- Do not introduce new colors or background styles unless they are added to the project’s design system
+- Keep visual consistency across all pages by following existing color and styling patterns
+
 # Final instruction:
 Before implementing anything, first scan the existing project structure and find similar patterns to reuse. If a similar implementation already exists anywhere in the project, extend it instead of rebuilding it from scratch.
