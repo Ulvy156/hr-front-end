@@ -97,9 +97,15 @@ const getActionIcon = (actionKey: string) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .quick-action-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -114,7 +120,10 @@ const getActionIcon = (actionKey: string) => {
 }
 
 .quick-action-card {
+  display: block;
   height: 100%;
+  min-width: 0;
+  overflow: hidden;
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
@@ -123,7 +132,10 @@ const getActionIcon = (actionKey: string) => {
 }
 
 .quick-action-card-primary {
+  display: block;
   height: 100%;
+  min-width: 0;
+  overflow: hidden;
   border-color: hsl(var(--primary));
   background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--primary) / 0.08) 100%);
   box-shadow: var(--shadow-card-hover);
@@ -143,8 +155,10 @@ const getActionIcon = (actionKey: string) => {
 
 .quick-action-body {
   display: flex;
-  min-height: 4.75rem;
-  align-items: center;
+  min-height: 5.25rem;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.875rem 1rem;
 }
@@ -164,22 +178,35 @@ const getActionIcon = (actionKey: string) => {
 .quick-action-content {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .quick-action-arrow {
   color: hsl(var(--muted-foreground));
   flex-shrink: 0;
+  align-self: center;
 }
 
 .quick-action-label {
   font-size: var(--text-sm);
   font-weight: 700;
   color: hsl(var(--foreground));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .quick-action-helper {
-  margin-top: 0.125rem;
   font-size: var(--text-xs);
   color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .quick-actions-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

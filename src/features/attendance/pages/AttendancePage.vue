@@ -1182,7 +1182,7 @@ function formatDateTimeWithOffset(value: Date | null) {
         </div>
 
         <BaseCard class="attendance-filters-card">
-          <div class="attendance-filters-grid">
+          <div class="grid grid-cols-5">
             <BaseDatePicker
               v-model="selectedMonth"
               label="Month"
@@ -1587,7 +1587,7 @@ function formatDateTimeWithOffset(value: Date | null) {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.875rem;
   padding: 0.9rem 1rem;
-  align-items: end;
+  align-items: center;
 }
 
 .attendance-filters-actions {

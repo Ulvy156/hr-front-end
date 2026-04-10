@@ -52,7 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
 
     try {
-      const currentUser = await authService.getProfile()
+      const currentUser = await authService.getMe()
       setUser(currentUser)
 
       return currentUser

@@ -7,6 +7,10 @@ export type BaseSelectOption = {
   disabled?: boolean
 }
 
+defineOptions({
+  inheritAttrs: false,
+})
+
 const model = defineModel<string | number | undefined>()
 
 const props = withDefaults(
@@ -31,12 +35,20 @@ const props = withDefaults(
   },
 )
 
+const attrs = useAttrs()
+
+const normalizedValue = computed(() => model.value ?? null)
+
 const selectClass = computed(() => [
   'base-select-control',
   {
     'has-error': Boolean(props.error),
   },
 ])
+
+const handleUpdate = (value: string | number | null | undefined) => {
+  model.value = value ?? undefined
+}
 </script>
 
 <template>
@@ -46,27 +58,24 @@ const selectClass = computed(() => [
     </BaseLabel>
 
     <div class="select-shell">
-      <select
+      <ElSelect
         :id="id"
-        v-model="model"
+        v-bind="attrs"
+        :model-value="normalizedValue"
         :class="selectClass"
         :disabled="disabled"
         :name="name"
-        :required="required"
+        :placeholder="placeholder"
+        @update:model-value="handleUpdate"
       >
-        <option :value="undefined" disabled>
-          {{ placeholder }}
-        </option>
-        <option
+        <ElOption
           v-for="option in options"
           :key="String(option.value)"
           :disabled="option.disabled"
+          :label="option.label"
           :value="option.value"
-        >
-          {{ option.label }}
-        </option>
-      </select>
-      <span class="select-indicator" aria-hidden="true">▾</span>
+        />
+      </ElSelect>
     </div>
 
     <p v-if="error" class="base-select-error">{{ error }}</p>
@@ -75,52 +84,59 @@ const selectClass = computed(() => [
 
 <style scoped>
 .base-select {
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
 
 .select-shell {
-  position: relative;
+  width: 100%;
 }
 
 .base-select-control {
   width: 100%;
+}
+
+.base-select:deep(.base-select-control .el-select__wrapper) {
   min-height: 2.75rem;
-  padding: 0.75rem 2.5rem 0.75rem 0.875rem;
-  border: 1px solid hsl(var(--border-gray));
+  padding: 0.375rem 0.875rem;
   border-radius: var(--radius);
   background: hsl(var(--card));
-  color: hsl(var(--foreground));
-  font: inherit;
-  appearance: none;
+  box-shadow: 0 0 0 1px hsl(var(--border-gray)) inset;
   transition:
-    border-color 0.2s ease,
     box-shadow 0.2s ease,
     background-color 0.2s ease;
 }
 
-.base-select-control:focus {
-  outline: none;
-  border-color: hsl(var(--ring));
-  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.16);
+.base-select:deep(.base-select-control .el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px hsl(var(--border-gray)) inset;
 }
 
-.base-select-control:disabled {
-  cursor: not-allowed;
-  background: hsl(var(--muted));
+.base-select:deep(.base-select-control.is-focus .el-select__wrapper),
+.base-select:deep(.base-select-control .el-select__wrapper.is-focused) {
+  box-shadow:
+    0 0 0 1px hsl(var(--ring)) inset,
+    0 0 0 3px hsl(var(--ring) / 0.16);
 }
 
-.select-indicator {
-  position: absolute;
-  top: 50%;
-  right: 0.875rem;
-  transform: translateY(-50%);
+.base-select:deep(.base-select-control .el-select__placeholder),
+.base-select:deep(.base-select-control .el-select__caret),
+.base-select:deep(.base-select-control .el-select__icon) {
   color: hsl(var(--muted-foreground));
-  pointer-events: none;
 }
 
-.has-error {
-  border-color: hsl(var(--destructive));
+.base-select:deep(.base-select-control .el-select__selected-item),
+.base-select:deep(.base-select-control .el-select__input-text) {
+  color: hsl(var(--foreground));
+}
+
+.base-select:deep(.base-select-control.is-disabled .el-select__wrapper) {
+  background: hsl(var(--muted));
+  box-shadow: 0 0 0 1px hsl(var(--border-gray)) inset;
+}
+
+.base-select:deep(.base-select-control.has-error .el-select__wrapper) {
+  box-shadow: 0 0 0 1px hsl(var(--destructive)) inset;
 }
 
 .base-select-error {

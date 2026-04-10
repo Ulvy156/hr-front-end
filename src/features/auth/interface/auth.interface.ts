@@ -40,7 +40,7 @@ export interface AuthUserEmployee {
   department?: EmployeeDepartment | null
   branch?: EmployeeBranch | null
   current_position?: EmployeePosition | null
-  manager?: { id: number; name: string } | null
+  manager?: { id: number; name: string, full_name: string } | null
   shift?: EmployeeShift | null
   addresses?: EmployeeAddress[]
   emergency_contacts?: EmployeeEmergencyContact[]
@@ -55,9 +55,16 @@ export interface AuthUserRole {
   id: number
   name: string
   description: string
+  permissions?: Array<{ id?: number; name: string; description?: string }> | null
   created_at?: string
   updated_at?: string
   deleted_at?: string | null
+}
+
+export interface AuthUserPermission {
+  id?: number
+  name: string
+  description?: string
 }
 
 export interface AuthUser {
@@ -69,6 +76,8 @@ export interface AuthUser {
   updated_at: string
   employee: AuthUserEmployee | null
   roles: AuthUserRole[]
+  permissions?: Array<AuthUserPermission | string> | null
+  permission_names?: string[] | null
 }
 
 export interface AuthChangePasswordPayload {

@@ -110,6 +110,8 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
 <style scoped>
 .records-card {
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .records-header {
@@ -118,6 +120,7 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem 1.25rem 0;
+  min-width: 0;
 }
 
 .records-title {
@@ -131,11 +134,13 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
 
 .records-table-shell {
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 1rem 1.25rem 1.25rem;
 }
 
 .records-table {
   width: 100%;
+  min-width: 34rem;
   border-collapse: collapse;
 }
 
@@ -145,6 +150,7 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
   border-bottom: 1px solid hsl(var(--border-gray));
   text-align: left;
   color: hsl(var(--foreground));
+  vertical-align: middle;
 }
 
 .records-table th {
@@ -214,6 +220,12 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
 @media (max-width: 768px) {
   .records-header {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .records-table {
+    min-width: 30rem;
   }
 }
 </style>

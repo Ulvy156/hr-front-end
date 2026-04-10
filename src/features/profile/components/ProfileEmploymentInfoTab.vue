@@ -13,7 +13,7 @@ const infoItems = (employee: AuthUserEmployee | null) => [
   { label: 'Full Name', value: employee?.full_name || [employee?.first_name, employee?.last_name].filter(Boolean).join(' ') || '--' },
   { label: 'Department', value: employee?.department?.name || '--' },
   { label: 'Current Position', value: employee?.current_position?.title || '--' },
-  { label: 'Manager', value: employee?.manager?.name || '--' },
+  { label: 'Manager', value: employee?.manager?.full_name || '--' },
   { label: 'Hire Date', value: formatEmployeeDate(employee?.hire_date) },
   { label: 'Employment Type', value: formatEmployeeStatus(employee?.employment_type) },
 ]

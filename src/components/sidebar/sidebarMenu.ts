@@ -2,6 +2,7 @@ import type { Component } from 'vue'
 import { ROLES, type Role } from '@/constants/roles'
 import {
   CalendarCheck,
+  CalendarClock,
   CircleDollarSign,
   History,
   LayoutDashboard,
@@ -33,6 +34,14 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/attendance',
     icon: CalendarCheck,
     section: 'main',
+  },
+  {
+    key: 'leave',
+    label: 'Leave',
+    path: '/leave',
+    icon: CalendarClock,
+    section: 'main',
+    allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
   },
   {
     key: 'payroll',

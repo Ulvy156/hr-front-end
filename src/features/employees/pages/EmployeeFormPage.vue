@@ -9,6 +9,8 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseTextarea from '@/components/ui/BaseTextarea.vue'
 
+import { useUsers } from '@/features/users/composable/useUsers'
+
 import EmployeeAvatar from '../components/EmployeeAvatar.vue'
 import EmployeeEditTabs from '../components/EmployeeEditTabs.vue'
 import { useEmployees } from '../composable/useEmployees'
@@ -55,6 +57,11 @@ const {
   uploadProfilePhoto,
   clearSelectedEmployee,
 } = useEmployees()
+const {
+  users,
+  isLoading: isUsersLoading,
+  fetchUsers,
+} = useUsers()
 
 const form = reactive<EmployeeFormState>(createEmptyEmployeeForm())
 const selectedPhotoFile = ref<File | null>(null)
@@ -197,6 +204,20 @@ const managerOptions = computed<BaseDropdownOption[]>(() => {
     .map(([id, name]) => ({ label: name, value: String(id) }))
 })
 
+const userOptions = computed<BaseDropdownOption[]>(() => {
+  return (users.value?.data ?? [])
+    .map((user) => {
+      const displayName = user.employee?.full_name || user.name
+      const departmentName = user.employee?.department?.name || 'No Department'
+
+      return {
+        label: `${displayName} - ${departmentName}`,
+        value: String(user.id),
+      }
+    })
+    .sort((left, right) => left.label.localeCompare(right.label))
+})
+
 const getEducationLevelOptions = (index: number): BaseDropdownOption[] => {
   const selectedLevels = new Set(
     form.educations
@@ -245,6 +266,16 @@ const loadWorkSetupOptions = async () => {
       sort_direction: 'asc',
     }),
   ])
+}
+
+const loadUserOptions = async () => {
+  if (users.value !== null) {
+    return
+  }
+
+  await fetchUsers({
+    per_page: 100,
+  })
 }
 
 const loadProvinces = async () => {
@@ -673,9 +704,14 @@ onMounted(async () => {
   }
 
   try {
-    await Promise.all([loadWorkSetupOptions(), loadProvinces(), loadEmployee()])
+    await Promise.all([loadWorkSetupOptions(), loadUserOptions(), loadProvinces(), loadEmployee()])
   } catch (err) {
-    if (!positions.value.length || !departmentOptions.value.length || !provinces.value.length) {
+    if (
+      !positions.value.length ||
+      !departmentOptions.value.length ||
+      !provinces.value.length ||
+      users.value === null
+    ) {
       ElMessage.error(getEmployeeRequestErrorMessage(err, 'Failed to load employee form options.'))
     }
   }
@@ -758,7 +794,15 @@ onBeforeUnmount(() => {
           <div class="employee-form-card-body">
             <h3 class="employee-form-section-title">General Info</h3>
             <div class="employee-form-fields">
-              <BaseInput v-model="form.user_id" label="User ID" placeholder="Required user ID" required type="number" />
+              <BaseDropdown
+                v-model="form.user_id"
+                :loading="isUsersLoading"
+                :options="userOptions"
+                filterable
+                label="User"
+                placeholder="Select linked user"
+                required
+              />
               <BaseInput v-model="form.employee_code" label="Employee Code" placeholder="Optional employee code" />
               <BaseInput v-model="form.first_name" label="First Name" placeholder="First name" required />
               <BaseInput v-model="form.last_name" label="Last Name" placeholder="Last name" required />

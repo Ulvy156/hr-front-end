@@ -432,21 +432,29 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
     </BaseCard>
 
     <template v-else-if="employeeDashboard">
-      <DashboardSummaryCards :items="employeePrimaryCards" />
+      <section class="dashboard-stack-section">
+        <DashboardSummaryCards :items="employeePrimaryCards" />
+      </section>
 
-      <DashboardSummaryCards :items="employeeSecondaryCards" tone="secondary" />
+      <section class="dashboard-stack-section">
+        <DashboardSummaryCards :items="employeeSecondaryCards" tone="secondary" />
+      </section>
 
-      <DashboardQuickActions
-        :actions="employeeDashboard.quickActions"
-        :next-action="employeeDashboard.summary.nextAction"
-        primary-action-key="scan_attendance"
-      />
+      <section class="dashboard-stack-section dashboard-stack-section-contained">
+        <DashboardQuickActions
+          :actions="employeeDashboard.quickActions"
+          :next-action="employeeDashboard.summary.nextAction"
+          primary-action-key="scan_attendance"
+        />
+      </section>
 
-      <DashboardRecentRecords
-        :records="employeeDashboard.recentRecords"
-        :role="employeeDashboard.role"
-        @view-all="handleViewAllRecords"
-      />
+      <section class="dashboard-stack-section">
+        <DashboardRecentRecords
+          :records="employeeDashboard.recentRecords"
+          :role="employeeDashboard.role"
+          @view-all="handleViewAllRecords"
+        />
+      </section>
     </template>
 
     <template v-else-if="hrDashboard">
@@ -508,6 +516,17 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-stack-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.dashboard-stack-section-contained {
+  overflow: hidden;
 }
 
 .dashboard-header {
@@ -515,6 +534,8 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .dashboard-header-actions {
@@ -542,6 +563,8 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .dashboard-skeleton-card {
@@ -598,6 +621,7 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
   grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
   gap: 1rem;
   align-items: start;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {

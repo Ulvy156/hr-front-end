@@ -61,6 +61,8 @@ const props = withDefaults(
 .summary-grid-secondary {
   display: grid;
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .summary-grid-primary {
@@ -73,17 +75,22 @@ const props = withDefaults(
 
 .summary-card-primary {
   min-height: 10.5rem;
+  min-width: 0;
+  overflow: hidden;
   background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.28) 100%);
   box-shadow: var(--shadow-card-hover);
 }
 
 .summary-card-secondary {
   min-height: 7.75rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .summary-card-body {
   display: flex;
   height: 100%;
+  min-width: 0;
   flex-direction: column;
   justify-content: space-between;
   padding: 1.25rem;
@@ -94,17 +101,21 @@ const props = withDefaults(
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .summary-card-meta {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .summary-label {
   color: hsl(var(--muted-foreground));
   font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .summary-icon-shell {
@@ -127,6 +138,8 @@ const props = withDefaults(
   line-height: 1.1;
   color: hsl(var(--foreground));
   letter-spacing: -0.02em;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .summary-value-primary {
@@ -139,5 +152,14 @@ const props = withDefaults(
 
 .summary-helper {
   color: hsl(var(--muted-foreground));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .summary-grid-primary,
+  .summary-grid-secondary {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

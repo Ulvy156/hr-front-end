@@ -27,6 +27,33 @@ const router = createRouter({
           component: () => import('@/features/attendance/pages/AttendancePage.vue'),
         },
         {
+          path: 'leave',
+          name: 'leave',
+          component: () => import('@/features/leave/pages/LeaveRequestsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+          },
+        },
+        {
+          path: 'leave/request',
+          name: 'leave-request',
+          component: () => import('@/features/leave/pages/LeaveRequestPage.vue'),
+          meta: {
+            requiresAuth: true,
+            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+          },
+        },
+        {
+          path: 'leave/:id',
+          name: 'leave-detail',
+          component: () => import('@/features/leave/pages/LeaveRequestDetailPage.vue'),
+          meta: {
+            requiresAuth: true,
+            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+          },
+        },
+        {
           path: 'employees',
           name: 'employees',
           component: () => import('@/features/employees/pages/EmployeesListPage.vue'),

@@ -1,5 +1,6 @@
 export const ROLES = {
   EMPLOYEE: 'employee',
+  MANAGER: 'manager',
   HR: 'hr',
   ADMIN: 'admin',
 } as const
@@ -52,7 +53,7 @@ export const getRoleList = (source: RoleSource): Role[] => {
 
 export const getPrimaryRole = (
   source: RoleSource,
-  priority: readonly Role[] = [ROLES.ADMIN, ROLES.HR, ROLES.EMPLOYEE],
+  priority: readonly Role[] = [ROLES.ADMIN, ROLES.HR, ROLES.MANAGER, ROLES.EMPLOYEE],
 ): Role | null => {
   const roles = getRoleList(source)
 
