@@ -303,7 +303,7 @@ onMounted(loadContacts)
             </div>
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <BaseInput v-model="row.name" label="Name" placeholder="Contact name" required />
+              <BaseInput v-model="row.name" label="Name" placeholder="Contact name" required size="large" />
               <BaseDropdown
                 v-model="row.relationship"
                 :options="relationshipOptions"
@@ -311,8 +311,8 @@ onMounted(loadContacts)
                 placeholder="Select relationship"
                 required
               />
-              <BaseInput v-model="row.phone" label="Phone" placeholder="Contact phone" required />
-              <BaseInput v-model="row.email" label="Email" placeholder="contact@example.com" type="email" />
+              <BaseInput v-model="row.phone" label="Phone" placeholder="Contact phone" required size="large" />
+              <BaseInput v-model="row.email" label="Email" placeholder="contact@example.com" size="large" type="email" />
             </div>
 
             <label class="inline-flex items-center gap-3 text-sm font-medium text-slate-700">

@@ -24,6 +24,7 @@ import {
   createEmptyEmployeePosition,
   createEmptyEmergencyContact,
   EMPLOYEE_SHOW_INCLUDES,
+  getEmployeeDisplayName,
   getEmployeeRequestErrorMessage,
   getEmployeeSuccessMessage,
   isEmployeeEducationDateRangeAvailable,
@@ -45,7 +46,7 @@ const {
   positions,
   selectedEmployee,
   isDetailLoading,
-  isHrRole,
+  canManageEmployeeProfiles,
   isPositionsLoading,
   isPhotoUploading,
   isSaving,
@@ -58,9 +59,9 @@ const {
   clearSelectedEmployee,
 } = useEmployees()
 const {
-  users,
+  availableUsers,
   isLoading: isUsersLoading,
-  fetchUsers,
+  fetchAvailableEmployeeUsers,
 } = useUsers()
 
 const form = reactive<EmployeeFormState>(createEmptyEmployeeForm())
@@ -149,7 +150,7 @@ const photoUrl = computed(() => {
     return photoPreviewUrl.value
   }
 
-  return selectedEmployee.value?.profile_photo || selectedEmployee.value?.profile_photo_path || null
+  return selectedEmployee.value?.profile_photo || null
 })
 
 const positionOptions = computed<BaseDropdownOption[]>(() => [
@@ -190,13 +191,17 @@ const managerOptions = computed<BaseDropdownOption[]>(() => {
   const uniqueManagers = new Map<number, string>()
 
   for (const employee of employees.value?.data ?? []) {
-    if (employee.manager?.id && employee.manager.name) {
-      uniqueManagers.set(employee.manager.id, employee.manager.name)
+    const managerName = getEmployeeDisplayName(employee.manager, '')
+
+    if (employee.manager?.id && managerName) {
+      uniqueManagers.set(employee.manager.id, managerName)
     }
   }
 
-  if (selectedEmployee.value?.manager?.id && selectedEmployee.value.manager.name) {
-    uniqueManagers.set(selectedEmployee.value.manager.id, selectedEmployee.value.manager.name)
+  const currentManagerName = getEmployeeDisplayName(selectedEmployee.value?.manager, '')
+
+  if (selectedEmployee.value?.manager?.id && currentManagerName) {
+    uniqueManagers.set(selectedEmployee.value.manager.id, currentManagerName)
   }
 
   return Array.from(uniqueManagers.entries())
@@ -205,13 +210,15 @@ const managerOptions = computed<BaseDropdownOption[]>(() => {
 })
 
 const userOptions = computed<BaseDropdownOption[]>(() => {
-  return (users.value?.data ?? [])
+  return (availableUsers.value ?? [])
     .map((user) => {
-      const displayName = user.employee?.full_name || user.name
-      const departmentName = user.employee?.department?.name || 'No Department'
+      const roleNames = user.roles
+        .map((role) => role.name)
+        .filter(Boolean)
+        .join(', ')
 
       return {
-        label: `${displayName} - ${departmentName}`,
+        label: roleNames ? `${user.name} - ${user.email} (${roleNames})` : `${user.name} - ${user.email}`,
         value: String(user.id),
       }
     })
@@ -269,13 +276,11 @@ const loadWorkSetupOptions = async () => {
 }
 
 const loadUserOptions = async () => {
-  if (users.value !== null) {
+  if (availableUsers.value !== null) {
     return
   }
 
-  await fetchUsers({
-    per_page: 100,
-  })
+  await fetchAvailableEmployeeUsers()
 }
 
 const loadProvinces = async () => {
@@ -710,7 +715,7 @@ onMounted(async () => {
       !positions.value.length ||
       !departmentOptions.value.length ||
       !provinces.value.length ||
-      users.value === null
+      availableUsers.value === null
     ) {
       ElMessage.error(getEmployeeRequestErrorMessage(err, 'Failed to load employee form options.'))
     }
@@ -741,7 +746,7 @@ onBeforeUnmount(() => {
         </BaseButton>
         <BaseButton
           v-if="!isEditMode"
-          :disabled="!isHrRole"
+          :disabled="!canManageEmployeeProfiles"
           :loading="isSaving || isPhotoUploading"
           @click="submitForm"
         >
@@ -774,7 +779,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="employee-form-photo-actions">
-            <BaseButton :disabled="!isHrRole" variant="ghost" @click="triggerPhotoPicker">
+            <BaseButton :disabled="!canManageEmployeeProfiles" variant="ghost" @click="triggerPhotoPicker">
               <ImagePlus :size="16" />
               Choose Photo
             </BaseButton>
@@ -803,11 +808,11 @@ onBeforeUnmount(() => {
                 placeholder="Select linked user"
                 required
               />
-              <BaseInput v-model="form.employee_code" label="Employee Code" placeholder="Optional employee code" />
-              <BaseInput v-model="form.first_name" label="First Name" placeholder="First name" required />
-              <BaseInput v-model="form.last_name" label="Last Name" placeholder="Last name" required />
-              <BaseInput v-model="form.email" label="Email" placeholder="name@example.com" required type="email" />
-              <BaseInput v-model="form.phone" label="Phone" placeholder="Primary work phone" required />
+              <BaseInput v-model="form.employee_code" label="Employee Code" placeholder="Optional employee code" size="large" />
+              <BaseInput v-model="form.first_name" label="First Name" placeholder="First name" required size="large" />
+              <BaseInput v-model="form.last_name" label="Last Name" placeholder="Last name" required size="large" />
+              <BaseInput v-model="form.email" label="Email" placeholder="name@example.com" required size="large" type="email" />
+              <BaseInput v-model="form.phone" label="Phone" placeholder="Primary work phone" required size="large" />
               <BaseDropdown v-model="form.status" :options="statusOptions" :clearable="false" label="Status" required />
               <BaseDatePicker v-model="form.hire_date" label="Hire Date" required value-format="YYYY-MM-DD" />
               <BaseDropdown v-model="form.employment_type" :options="employmentTypeOptions" label="Employment Type" />
@@ -861,10 +866,10 @@ onBeforeUnmount(() => {
             <div class="employee-form-fields">
               <BaseDatePicker v-model="form.date_of_birth" label="Date of Birth" value-format="YYYY-MM-DD" />
               <BaseDropdown v-model="form.gender" :options="genderOptions" label="Gender" />
-              <BaseInput v-model="form.personal_phone" label="Personal Phone" />
-              <BaseInput v-model="form.personal_email" label="Personal Email" type="email" />
+              <BaseInput v-model="form.personal_phone" label="Personal Phone" size="large" />
+              <BaseInput v-model="form.personal_email" label="Personal Email" size="large" type="email" />
               <BaseDropdown v-model="form.id_type" :options="idTypeOptions" label="ID Type" />
-              <BaseInput v-model="form.id_number" label="ID Number" />
+              <BaseInput v-model="form.id_number" label="ID Number" size="large" />
             </div>
           </div>
         </BaseCard>
@@ -909,6 +914,7 @@ onBeforeUnmount(() => {
                   v-model="address.address_line"
                   label="Address Line"
                   placeholder="Apartment, building, or area details"
+                  size="large"
                 />
                 <BaseDropdown
                   v-model="address.province_id"
@@ -956,16 +962,19 @@ onBeforeUnmount(() => {
                   v-model="address.street"
                   label="Street"
                   placeholder="Street name or number"
+                  size="large"
                 />
                 <BaseInput
                   v-model="address.house_no"
                   label="House No"
                   placeholder="House or unit number"
+                  size="large"
                 />
                 <BaseInput
                   v-model="address.postal_code"
                   label="Postal Code"
                   placeholder="Postal code"
+                  size="large"
                 />
               </div>
               <BaseTextarea
@@ -1015,10 +1024,10 @@ onBeforeUnmount(() => {
                 </BaseButton>
               </div>
               <div class="employee-form-fields">
-                <BaseInput v-model="contact.name" label="Name" required />
+                <BaseInput v-model="contact.name" label="Name" required size="large" />
                 <BaseDropdown v-model="contact.relationship" :options="relationshipOptions" label="Relationship" required />
-                <BaseInput v-model="contact.phone" label="Phone" required />
-                <BaseInput v-model="contact.email" label="Email" type="email" />
+                <BaseInput v-model="contact.phone" label="Phone" required size="large" />
+                <BaseInput v-model="contact.email" label="Email" size="large" type="email" />
               </div>
               <label class="employee-form-checkbox">
                 <input
@@ -1066,6 +1075,7 @@ onBeforeUnmount(() => {
                   label="Institution Name"
                   placeholder="School, university, or training center name"
                   required
+                  size="large"
                 />
                 <BaseDropdown
                   v-model="education.education_level"
@@ -1077,11 +1087,13 @@ onBeforeUnmount(() => {
                   v-model="education.degree"
                   label="Degree"
                   placeholder="Formal qualification, e.g. Bachelor of Information Technology"
+                  size="large"
                 />
                 <BaseInput
                   v-model="education.field_of_study"
                   label="Field of Study"
                   placeholder="Major or specialization, e.g. Computer Science"
+                  size="large"
                 />
                 <BaseDatePicker
                   v-model="education.start_date"
@@ -1102,12 +1114,14 @@ onBeforeUnmount(() => {
                   v-model="education.graduation_year"
                   label="Graduation Year"
                   placeholder="Year completed, e.g. 2024"
+                  size="large"
                   type="number"
                 />
                 <BaseInput
                   v-model="education.grade"
                   label="Grade"
                   placeholder="Final result, e.g. A or 3.45 GPA"
+                  size="large"
                 />
               </div>
               <BaseTextarea
@@ -1158,7 +1172,7 @@ onBeforeUnmount(() => {
                   placeholder="Select position"
                   required
                 />
-                <BaseInput v-model="position.base_salary" label="Base Salary" required type="number" />
+                <BaseInput v-model="position.base_salary" label="Base Salary" required size="large" type="number" />
                 <BaseDatePicker
                   v-model="position.start_date"
                   :disabled-date="getPositionStartDateDisabledDate(index)"
@@ -1258,7 +1272,7 @@ onBeforeUnmount(() => {
 
 .employee-form-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 1.5rem;
 }
 

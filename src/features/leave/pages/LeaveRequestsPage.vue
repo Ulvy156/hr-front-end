@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import axios from 'axios'
 import {
   Ban,
   Check,
@@ -11,7 +10,6 @@ import {
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
-import { ROLES } from '@/constants/roles'
 import type { ActionMenuItem } from '@/components/ui/ActionMenu.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -36,8 +34,6 @@ import {
   formatLeaveStatusLabel,
   getLeaveRequestErrorMessage,
   getLeaveReviewDefaultStatus,
-  hasAuthPermission,
-  hasNamedRole,
 } from '../utils/leave'
 
 const router = useRouter()
@@ -45,9 +41,14 @@ const router = useRouter()
 const {
   currentUser,
   employee,
+  canViewSelfLeaveBalances,
+  canViewSelfLeaveRequests,
   canCreateRequests,
   canReviewRequests,
-  isAdminRole,
+  canManagerApproveRequests,
+  canHrApproveRequests,
+  canViewAnyReviewQueue,
+  canViewAssignedReviewQueue,
   leaveTypes,
   leaveBalances,
   myRequests,
@@ -67,6 +68,7 @@ const {
   fetchLeaveTypes,
   fetchLeaveBalances,
   fetchMyRequests,
+  fetchPendingRequests,
   fetchReviewRequests,
   cancelLeaveRequest,
   managerReviewLeaveRequest,
@@ -84,7 +86,6 @@ const pendingAction = ref<{
     | 'hr_approve'
     | 'hr_reject'
 } | null>(null)
-const hideHrReviewActions = ref(false)
 
 const leaveTypeOptions = computed<BaseDropdownOption[]>(() => [
   { label: 'All leave types', value: '' },
@@ -106,13 +107,7 @@ const myRequestSummary = computed<LeaveRequestListSummary | null>(() => myReques
 const reviewRequestSummary = computed<LeaveRequestListSummary | null>(
   () => reviewRequests.value?.summary ?? null,
 )
-const canCurrentUserHrApprove = computed(() => {
-  if (hideHrReviewActions.value) {
-    return false
-  }
-
-  return hasAuthPermission(currentUser.value, 'leave.approve.hr')
-})
+const canCurrentUserHrApprove = computed(() => canHrApproveRequests.value)
 const hasPendingLeaveRequest = computed(() => {
   if ((pendingRequests.value?.total ?? 0) > 0) {
     return true
@@ -127,17 +122,20 @@ const hasPendingLeaveRequest = computed(() => {
 const canShowCreateRequestButton = computed(() => {
   return canCreateRequests.value && !hasPendingLeaveRequest.value
 })
+const canShowSelfServiceSection = computed(() => {
+  return canViewSelfLeaveRequests.value || canViewSelfLeaveBalances.value || canCreateRequests.value
+})
 const reviewSectionDescription = computed(() => {
   if (canCurrentUserHrApprove.value) {
     return 'Review manager-approved leave requests and complete final HR approval.'
   }
 
-  if (currentUser.value?.employee?.id) {
-    return 'Review leave requests assigned to you for the first approval step before HR final approval.'
+  if (canViewAnyReviewQueue.value) {
+    return 'Review leave requests across the organization using the permissions assigned to your account.'
   }
 
-  if (isAdminRole.value) {
-    return 'Inspect the shared review queue. Approval actions only appear when you are explicitly assigned or have HR approval permission.'
+  if (canViewAssignedReviewQueue.value || canManagerApproveRequests.value) {
+    return 'Review leave requests assigned to you for the first approval step before HR final approval.'
   }
 
   return 'View leave requests across the organization using the current filters.'
@@ -146,9 +144,16 @@ const reviewSectionDescription = computed(() => {
 const loadPage = async () => {
   const tasks: Array<Promise<unknown>> = [fetchLeaveTypes()]
 
-  if (canCreateRequests.value) {
+  if (canViewSelfLeaveBalances.value) {
     tasks.push(fetchLeaveBalances())
+  }
+
+  if (canViewSelfLeaveRequests.value || canCreateRequests.value) {
     tasks.push(fetchMyRequests())
+  }
+
+  if (canCreateRequests.value) {
+    tasks.push(fetchPendingRequests())
   }
 
   if (canReviewRequests.value) {
@@ -222,11 +227,36 @@ const summaryCards = (summary: LeaveRequestListSummary | null) => {
   }
 
   return [
-    { key: 'total', label: 'Total Requests', value: summary.total_requests },
-    { key: 'pending', label: 'Pending', value: summary.pending_count },
-    { key: 'approved', label: 'Approved', value: summary.approved_count },
-    { key: 'rejected', label: 'Rejected', value: summary.rejected_count },
-    { key: 'cancelled', label: 'Cancelled', value: summary.cancelled_count },
+    {
+      key: 'total',
+      label: 'Total Requests',
+      value: summary.total_requests,
+      helper: 'Across the current view',
+    },
+    {
+      key: 'pending',
+      label: 'Pending',
+      value: summary.pending_count,
+      helper: 'Awaiting action',
+    },
+    {
+      key: 'approved',
+      label: 'Approved',
+      value: summary.approved_count,
+      helper: 'Completed requests',
+    },
+    {
+      key: 'rejected',
+      label: 'Rejected',
+      value: summary.rejected_count,
+      helper: 'Closed without approval',
+    },
+    {
+      key: 'cancelled',
+      label: 'Cancelled',
+      value: summary.cancelled_count,
+      helper: 'Withdrawn requests',
+    },
   ]
 }
 
@@ -287,14 +317,9 @@ const handleHrReview = async (
 ) => {
   try {
     const response = await hrReviewLeaveRequest(request.id, { status })
-    hideHrReviewActions.value = false
     ElMessage.success(response.message)
     closePendingAction()
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response?.status === 403) {
-      hideHrReviewActions.value = true
-    }
-
     await fetchReviewRequests().catch(() => undefined)
     ElMessage.error(getLeaveRequestErrorMessage(err))
   }
@@ -352,7 +377,7 @@ const resolveReviewActions = (request: LeaveRequest) => {
     )
   }
 
-  if (canApproveHRStep(request, currentUser.value) && !hideHrReviewActions.value) {
+  if (canApproveHRStep(request, currentUser.value)) {
     items.push(
       {
         key: 'hr_approve',
@@ -546,45 +571,42 @@ onMounted(async () => {
 
 <template>
   <main class="leave-page">
-    <div class="leave-header">
-      <div>
-        <h1 class="leave-title">Leave Requests</h1>
-        <p class="leave-subtitle">
-          Submit leave requests, review approval progress, and monitor leave balances using the current API contract.
-        </p>
-      </div>
-
-      <div class="leave-header-actions">
-        <BaseButton variant="secondary" @click="loadPage">
-          <RefreshCw :size="16" />
-          Refresh
-        </BaseButton>
-        <BaseButton v-if="canShowCreateRequestButton" @click="goToCreatePage">
-          <Plus :size="16" />
-          New Leave Request
-        </BaseButton>
-      </div>
-    </div>
-
-    <BaseCard v-if="!canCreateRequests && !canReviewRequests" class="leave-state-card">
+    <BaseCard v-if="!canShowSelfServiceSection && !canReviewRequests" class="leave-state-card">
       <div class="leave-state-body">
-        <h3 class="leave-state-title">Leave access is unavailable</h3>
+        <h1 class="leave-title">Leave Requests</h1>
         <p class="leave-state-text">
-          This account does not have a leave self-service profile or a review role in the current auth state.
+          Leave access is unavailable for this account. This user does not currently have permission to create requests or review the leave queue.
         </p>
       </div>
     </BaseCard>
 
     <template v-else>
-      <section v-if="canCreateRequests" class="leave-section">
-        <div class="leave-section-copy">
-          <h2 class="leave-section-title">My Leave Requests</h2>
-          <p class="leave-section-text">
-            Submit a request and review your own leave history, current status, and leave balances.
-          </p>
+      <section v-if="canShowSelfServiceSection" class="leave-section leave-section-primary">
+        <div class="leave-section-heading">
+          <div class="leave-section-copy">
+            <h2 class="leave-section-title">My Leave Requests</h2>
+            <p class="leave-section-text">
+              Submit a request and review your leave history and balances.
+            </p>
+          </div>
+          <div class="leave-section-side">
+            <p v-if="myRequestSummary" class="leave-section-pill">
+              {{ myRequestSummary.total_requests }} tracked
+            </p>
+            <div class="leave-section-actions">
+              <BaseButton variant="secondary" @click="loadPage">
+                <RefreshCw :size="16" />
+                Refresh
+              </BaseButton>
+              <BaseButton v-if="canShowCreateRequestButton" @click="goToCreatePage">
+                <Plus :size="16" />
+                New Leave Request
+              </BaseButton>
+            </div>
+          </div>
         </div>
 
-        <BaseCard v-if="isLeaveBalancesLoading && !leaveBalances.length" class="leave-inline-state-card">
+        <BaseCard v-if="canViewSelfLeaveBalances && isLeaveBalancesLoading && !leaveBalances.length" class="leave-inline-state-card">
           <div class="leave-inline-state">
             <h3 class="leave-state-title">Loading leave balances</h3>
             <p class="leave-state-text">
@@ -593,7 +615,7 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
-        <BaseCard v-else-if="leaveBalancesError" class="leave-inline-state-card">
+        <BaseCard v-else-if="canViewSelfLeaveBalances && leaveBalancesError" class="leave-inline-state-card">
           <div class="leave-inline-state">
             <h3 class="leave-state-title">Unable to load leave balances</h3>
             <p class="leave-state-text">{{ leaveBalancesError }}</p>
@@ -601,7 +623,7 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
-        <BaseCard v-else-if="!leaveBalances.length" class="leave-inline-state-card">
+        <BaseCard v-else-if="canViewSelfLeaveBalances && !leaveBalances.length" class="leave-inline-state-card">
           <div class="leave-inline-state">
             <h3 class="leave-state-title">No leave balances available</h3>
             <p class="leave-state-text">
@@ -611,20 +633,24 @@ onMounted(async () => {
         </BaseCard>
 
         <LeaveBalanceSummary
-          v-else
+          v-else-if="canViewSelfLeaveBalances"
           :balances="leaveBalances"
-          title="Current Leave Balances"
-          description="Your leave balances for each leave type returned by the API."
+          title="Leave Balances"
+          description="Current balances from your employee profile."
         />
 
         <div v-if="summaryCards(myRequestSummary).length" class="leave-summary-grid">
           <BaseCard
             v-for="card in summaryCards(myRequestSummary)"
             :key="card.key"
-            class="leave-summary-stat-card"
+            :class="['leave-summary-stat-card', `leave-summary-stat-card-${card.key}`]"
           >
-            <span class="leave-summary-stat-label">{{ card.label }}</span>
+            <div class="leave-summary-stat-head">
+              <span class="leave-summary-stat-label">{{ card.label }}</span>
+              <span class="leave-summary-stat-dot" />
+            </div>
             <strong class="leave-summary-stat-value">{{ card.value }}</strong>
+            <p class="leave-summary-stat-helper">{{ card.helper }}</p>
           </BaseCard>
         </div>
 
@@ -636,7 +662,14 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
-        <BaseCard class="leave-filters-card">
+        <BaseCard v-if="canViewSelfLeaveRequests || canCreateRequests" class="leave-filters-card">
+          <div class="leave-filters-copy">
+            <h3 class="leave-filters-title">Refine your history</h3>
+            <p class="leave-filters-text">
+              Filter by type, status, and date range.
+            </p>
+          </div>
+
           <div class="leave-filters-grid leave-filters-grid-self">
             <BaseDropdown
               v-model="myFilters.type"
@@ -669,7 +702,7 @@ onMounted(async () => {
           </div>
         </BaseCard>
 
-        <BaseCard v-if="myRequestsError && !myRequests" class="leave-inline-state-card">
+        <BaseCard v-if="(canViewSelfLeaveRequests || canCreateRequests) && myRequestsError && !myRequests" class="leave-inline-state-card">
           <div class="leave-inline-state">
             <h3 class="leave-state-title">Unable to load leave history</h3>
             <p class="leave-state-text">{{ myRequestsError }}</p>
@@ -678,7 +711,7 @@ onMounted(async () => {
         </BaseCard>
 
         <BaseCard
-          v-else-if="!isMyRequestsLoading && myRequests && !myRequests.data.length"
+          v-else-if="(canViewSelfLeaveRequests || canCreateRequests) && !isMyRequestsLoading && myRequests && !myRequests.data.length"
           class="leave-inline-state-card"
         >
           <div class="leave-inline-state">
@@ -693,7 +726,7 @@ onMounted(async () => {
         </BaseCard>
 
         <LeaveRequestsTable
-          v-else
+          v-else-if="canViewSelfLeaveRequests || canCreateRequests"
           :loading="isMyRequestsLoading"
           :requests="myRequests"
           :resolve-actions="resolveSelfActions"
@@ -706,29 +739,54 @@ onMounted(async () => {
         />
       </section>
 
-      <section v-if="canReviewRequests" class="leave-section">
-        <div class="leave-section-copy">
-          <h2 class="leave-section-title">Review Queue</h2>
-          <p class="leave-section-text">{{ reviewSectionDescription }}</p>
+      <section v-if="canReviewRequests" class="leave-section leave-section-review">
+        <div class="leave-section-heading">
+          <div class="leave-section-copy">
+            <h2 class="leave-section-title">Review Queue</h2>
+            <p class="leave-section-text">{{ reviewSectionDescription }}</p>
+          </div>
+          <div class="leave-section-side">
+            <p v-if="reviewRequestSummary" class="leave-section-pill">
+              {{ reviewRequestSummary.total_requests }} in queue
+            </p>
+            <div v-if="!canShowSelfServiceSection" class="leave-section-actions">
+              <BaseButton variant="secondary" @click="loadPage">
+                <RefreshCw :size="16" />
+                Refresh
+              </BaseButton>
+            </div>
+          </div>
         </div>
 
         <div v-if="summaryCards(reviewRequestSummary).length" class="leave-summary-grid">
           <BaseCard
             v-for="card in summaryCards(reviewRequestSummary)"
             :key="`review-${card.key}`"
-            class="leave-summary-stat-card"
+            :class="['leave-summary-stat-card', `leave-summary-stat-card-${card.key}`]"
           >
-            <span class="leave-summary-stat-label">{{ card.label }}</span>
+            <div class="leave-summary-stat-head">
+              <span class="leave-summary-stat-label">{{ card.label }}</span>
+              <span class="leave-summary-stat-dot" />
+            </div>
             <strong class="leave-summary-stat-value">{{ card.value }}</strong>
+            <p class="leave-summary-stat-helper">{{ card.helper }}</p>
           </BaseCard>
         </div>
 
         <BaseCard class="leave-filters-card">
+          <div class="leave-filters-copy">
+            <h3 class="leave-filters-title">Refine the queue</h3>
+            <p class="leave-filters-text">
+              Filter by employee, leave type, status, and date range.
+            </p>
+          </div>
+
           <div class="leave-filters-grid">
             <BaseInput
               v-model="reviewFilters.employee_id"
               label="Employee ID"
               placeholder="Filter by employee ID"
+              size="large"
             />
             <BaseDropdown
               v-model="reviewFilters.type"
@@ -784,13 +842,13 @@ onMounted(async () => {
         />
 
         <BaseCard
-          v-if="isAdminRole && !hasNamedRole(currentUser, ROLES.MANAGER) && !hasNamedRole(currentUser, ROLES.HR)"
+          v-if="canViewAnyReviewQueue && !canCurrentUserHrApprove"
           class="leave-inline-state-card"
         >
           <div class="leave-inline-state">
-            <h3 class="leave-state-title">Admin oversight mode</h3>
+            <h3 class="leave-state-title">Review oversight mode</h3>
             <p class="leave-state-text">
-              Admin can inspect the review queue here, but approval actions only appear for the assigned first approver or users with leave.approve.hr.
+              You can inspect the shared review queue here, but approval actions only appear for the assigned first approver or users with leave.approve.hr.
             </p>
           </div>
         </BaseCard>
@@ -814,24 +872,60 @@ onMounted(async () => {
 .leave-page {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.2rem;
 }
 
-.leave-header {
+.leave-filters-card,
+.leave-state-card,
+.leave-inline-state-card {
+  overflow: hidden;
+}
+
+.leave-section-copy,
+.leave-filters-copy {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
 }
 
-.leave-header-actions {
+.leave-section-copy,
+.leave-filters-copy {
+  gap: 0.3rem;
+}
+
+.leave-summary-stat-label {
+  color: hsl(var(--primary));
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.leave-section-side,
+.leave-section-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.leave-section-side {
+  justify-content: flex-end;
+}
+
+.leave-section-actions {
+  justify-content: flex-end;
+}
+
+.leave-title {
+  font-size: clamp(2rem, 2.3vw, 2.45rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
 }
 
 .leave-title,
 .leave-section-title,
+.leave-filters-title,
 .leave-state-title {
   color: hsl(var(--foreground));
 }
@@ -842,27 +936,66 @@ onMounted(async () => {
   color: hsl(var(--muted-foreground));
 }
 
+.leave-subtitle {
+  max-width: 46rem;
+  font-size: 0.97rem;
+  line-height: 1.55;
+}
+
 .leave-section {
   display: flex;
   flex-direction: column;
+  gap: 1.1rem;
+}
+
+.leave-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.leave-section-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.leave-section-title {
+  font-size: 1.28rem;
+  font-weight: 700;
+  line-height: 1.15;
 }
 
-.leave-filters-card {
-  overflow: hidden;
+.leave-section-text,
+.leave-filters-text {
+  max-width: 46rem;
+  line-height: 1.5;
+}
+
+.leave-section-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: 999px;
+  background: hsl(var(--secondary) / 0.24);
+  color: hsl(var(--foreground));
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.leave-filters-copy {
+  padding: 1.15rem 1.25rem 0;
+}
+
+.leave-filters-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .leave-filters-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
-  padding: 1.25rem;
+  padding: 1rem 1.25rem 1.1rem;
 }
 
 .leave-filters-grid-self {
@@ -873,38 +1006,78 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  padding: 0 1.25rem 1.25rem;
-}
-
-.leave-state-card,
-.leave-inline-state-card {
-  overflow: hidden;
+  padding: 0 1.25rem 1.15rem;
 }
 
 .leave-summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .leave-summary-stat-card {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 1rem;
+  gap: 0.7rem;
+  min-height: 9rem;
+  padding: 1rem 1rem 1.05rem;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.18) 100%);
+}
+
+.leave-summary-stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.15) 100%);
+}
+
+.leave-summary-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.leave-summary-stat-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.4);
+  flex-shrink: 0;
 }
 
 .leave-summary-stat-label {
   color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .leave-summary-stat-value {
   color: hsl(var(--foreground));
-  font-size: 1.5rem;
-  line-height: 1;
+  font-size: clamp(1.6rem, 1.2rem + 1vw, 2.1rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.leave-summary-stat-helper {
+  color: hsl(var(--muted-foreground));
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.leave-summary-stat-card-pending .leave-summary-stat-dot {
+  background: hsl(var(--warning, 38 92% 50%) / 0.6);
+}
+
+.leave-summary-stat-card-approved .leave-summary-stat-dot {
+  background: hsl(var(--success, 142 76% 36%) / 0.6);
+}
+
+.leave-summary-stat-card-rejected .leave-summary-stat-dot,
+.leave-summary-stat-card-cancelled .leave-summary-stat-dot {
+  background: hsl(var(--destructive) / 0.55);
 }
 
 .leave-state-body,
@@ -917,6 +1090,7 @@ onMounted(async () => {
   min-height: 14rem;
   padding: 1.5rem;
   text-align: center;
+  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.1) 100%);
 }
 
 .leave-inline-state {
@@ -924,13 +1098,16 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .leave-header {
+  .leave-section-heading {
+    width: 100%;
     flex-direction: column;
+    align-items: flex-start;
   }
 
-  .leave-header-actions {
+  .leave-section-side,
+  .leave-section-actions {
     width: 100%;
-    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .leave-filters-grid,

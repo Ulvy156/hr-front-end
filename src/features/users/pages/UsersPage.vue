@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Eye, KeyRound, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-vue-next'
 
 import ActionMenu, { type ActionMenuItem } from '@/components/ui/ActionMenu.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
@@ -9,6 +9,8 @@ import BaseDropdown, { type BaseDropdownOption } from '@/components/ui/BaseDropd
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
+import { PERMISSIONS } from '@/constants/permissions'
+import { usePermission } from '@/features/auth/composable/usePermission'
 
 import UserDeleteModal from '../components/UserDeleteModal.vue'
 import UserDetailsModal from '../components/UserDetailsModal.vue'
@@ -26,11 +28,28 @@ import {
   createDefaultUserFilters,
   formatUserDate,
   formatUserLabel,
+  getUserDisplayName,
   getUserRequestErrorMessage,
   getUserSuccessMessage,
+  USER_MANAGEMENT_LABELS,
 } from '../utils/user'
 
-type UserActionCommand = 'view' | 'edit' | 'reset-password' | 'delete'
+type UserActionCommand = 'view' | 'edit' | 'permissions' | 'reset-password' | 'delete'
+
+const router = useRouter()
+const { hasPermission } = usePermission()
+const canManageUsers = computed(() => hasPermission(PERMISSIONS.USER_MANAGE))
+const canManageUserAccess = computed(() => {
+  return (
+    hasPermission(PERMISSIONS.USER_VIEW) &&
+    hasPermission(PERMISSIONS.ROLE_VIEW) &&
+    hasPermission(PERMISSIONS.PERMISSION_VIEW) &&
+    (
+      hasPermission(PERMISSIONS.USER_ROLE_ASSIGN) ||
+      hasPermission(PERMISSIONS.USER_PERMISSION_ASSIGN)
+    )
+  )
+})
 
 const {
   users,
@@ -68,7 +87,7 @@ const tableColumns: BaseTableColumn[] = [
   { key: 'id', label: 'ID' },
   { key: 'name', label: 'Name' },
   { key: 'email', label: 'Email' },
-  { key: 'roles', label: 'Role' },
+  { key: 'roles', label: USER_MANAGEMENT_LABELS.userType },
   { key: 'status', label: 'Status' },
   { key: 'employee', label: 'Linked Employee' },
   { key: 'created_at', label: 'Created At' },
@@ -89,7 +108,7 @@ const employeeStatusOptions: BaseDropdownOption[] = [
 ]
 
 const roleOptions = computed<BaseDropdownOption[]>(() => [
-  { label: 'All roles', value: '' },
+  { label: `All ${USER_MANAGEMENT_LABELS.userTypes.toLowerCase()}`, value: '' },
   ...roles.value.map((role) => ({
     label: role.description || formatUserLabel(role.name),
     value: String(role.id),
@@ -105,7 +124,7 @@ const pageSummary = computed(() => {
 
   const { from, to, total, current_page, last_page } = users.value.meta
 
-  return `Showing ${from ?? 0}-${to ?? 0} of ${total} users • Page ${current_page} of ${last_page}`
+  return `Showing ${from ?? 0}-${to ?? 0} of ${total} users | Page ${current_page} of ${last_page}`
 })
 
 const buildListParams = (): UserListParams => {
@@ -335,14 +354,44 @@ const getRoleVariant = (value: string | null | undefined) => {
   return 'default'
 }
 
-const getUserActions = (user: UserAccount): ActionMenuItem[] => [
-  { key: `view:${user.id}`, label: 'View Details', icon: Eye },
-  { key: `edit:${user.id}`, label: 'Edit User', icon: Pencil },
-  { key: `reset-password:${user.id}`, label: 'Reset Password', icon: KeyRound },
-  { key: `delete:${user.id}`, label: 'Delete User', icon: Trash2, tone: 'danger' },
-]
+const getUserActions = (user: UserAccount): ActionMenuItem[] => {
+  const items: ActionMenuItem[] = []
+
+  if (canManageUsers.value) {
+    items.push(
+      { key: `view:${user.id}`, label: 'View Details', icon: Eye },
+      { key: `edit:${user.id}`, label: 'Edit User', icon: Pencil },
+    )
+  }
+
+  if (canManageUserAccess.value) {
+    items.push({
+      key: `permissions:${user.id}`,
+      label: 'Manage Access',
+      icon: ShieldCheck,
+    })
+  }
+
+  if (canManageUsers.value) {
+    items.push(
+      { key: `reset-password:${user.id}`, label: 'Reset Password', icon: KeyRound },
+      { key: `delete:${user.id}`, label: 'Delete User', icon: Trash2, tone: 'danger' },
+    )
+  }
+
+  return items
+}
 
 const asUserAccount = (row: Record<string, unknown>) => row as unknown as UserAccount
+
+const openPermissionsPage = async (user: UserAccount) => {
+  await router.push({
+    name: 'user-permissions',
+    params: {
+      id: user.id,
+    },
+  })
+}
 
 const handleActionSelect = (user: UserAccount, actionKey: string) => {
   const [command] = actionKey.split(':') as [UserActionCommand]
@@ -354,6 +403,11 @@ const handleActionSelect = (user: UserAccount, actionKey: string) => {
 
   if (command === 'edit') {
     void openEditModal(user)
+    return
+  }
+
+  if (command === 'permissions') {
+    void openPermissionsPage(user)
     return
   }
 
@@ -373,42 +427,57 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="space-y-5">
-    <div class="space-y-1">
-      <h1 class="text-3xl font-semibold text-slate-950">Users</h1>
-      <p class="text-sm text-slate-500">
-        Manage system user accounts, assigned roles, and linked employees using the admin user APIs.
-      </p>
-    </div>
+  <main class="users-page">
+    <header class="users-page-header">
+      <div class="users-page-copy">
+        <h1 class="users-page-title">Users</h1>
+        <p class="users-page-subtitle">
+          View users, choose a user type, and connect each account to the right employee.
+        </p>
+      </div>
 
-    <BaseCard class="border border-slate-200 shadow-sm">
-      <div class="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
-        <div class="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <BaseInput v-model="filters.search" label="Search" placeholder="Search by name or email" />
-          <BaseDropdown
-            v-model="filters.role_id"
-            :loading="isRolesLoading"
-            :options="roleOptions"
-            filterable
-            label="Role"
-            placeholder="All roles"
-          />
-          <BaseDropdown
-            v-model="filters.employee_status"
-            :options="employeeStatusOptions"
-            label="Employee Status"
-            placeholder="All employee statuses"
-          />
-          <BaseInput
-            v-model="filters.employee_id"
-            label="Employee ID"
-            placeholder="Filter by employee ID"
-            type="number"
-          />
-        </div>
+      <div class="users-page-header-actions">
+        <BaseButton v-if="canManageUsers" @click="openCreateModal">
+          <Plus :size="16" />
+          New User
+        </BaseButton>
+      </div>
+    </header>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="min-w-40">
+    <BaseCard class="users-toolbar-card">
+      <div class="users-toolbar">
+        <div class="users-toolbar-filters">
+          <div class="users-toolbar-filter users-toolbar-filter-search">
+            <BaseInput v-model="filters.search" label="Search" placeholder="Search by name or email" size="large" />
+          </div>
+          <div class="users-toolbar-filter">
+            <BaseDropdown
+              v-model="filters.role_id"
+              :loading="isRolesLoading"
+              :options="roleOptions"
+              filterable
+              :label="USER_MANAGEMENT_LABELS.userType"
+              :placeholder="`All ${USER_MANAGEMENT_LABELS.userTypes.toLowerCase()}`"
+            />
+          </div>
+          <div class="users-toolbar-filter">
+            <BaseDropdown
+              v-model="filters.employee_status"
+              :options="employeeStatusOptions"
+              label="Employee Status"
+              placeholder="All employee statuses"
+            />
+          </div>
+          <div class="users-toolbar-filter">
+            <BaseInput
+              v-model="filters.employee_id"
+              label="Employee ID"
+              placeholder="Filter by employee ID"
+              size="large"
+              type="number"
+            />
+          </div>
+          <div class="users-toolbar-filter users-toolbar-filter-rows">
             <BaseDropdown
               v-model="filters.per_page"
               :clearable="false"
@@ -416,29 +485,28 @@ onMounted(async () => {
               label="Rows"
             />
           </div>
+        </div>
+
+        <div class="users-toolbar-actions">
           <BaseButton variant="ghost" @click="resetFilters">Reset</BaseButton>
-          <BaseButton variant="secondary" @click="applyFilters">Apply Filters</BaseButton>
-          <BaseButton variant="secondary" @click="refreshList">
+          <BaseButton variant="ghost" @click="refreshList">
             <RefreshCw :size="16" />
             Refresh
           </BaseButton>
-          <BaseButton @click="openCreateModal">
-            <Plus :size="16" />
-            New User
-          </BaseButton>
+          <BaseButton variant="secondary" @click="applyFilters">Apply Filters</BaseButton>
         </div>
       </div>
     </BaseCard>
 
-    <BaseCard class="border border-slate-200 shadow-sm">
-      <div class="space-y-4 p-5">
-        <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-slate-900">User Directory</h2>
-            <p class="text-sm text-slate-500">{{ pageSummary }}</p>
+    <BaseCard class="users-table-card">
+      <div class="users-table-card-body">
+        <div class="users-table-topbar">
+          <div class="users-table-heading">
+            <h2 class="users-table-title">User Directory</h2>
+            <p class="users-table-summary">{{ pageSummary }}</p>
           </div>
 
-          <div v-if="users?.meta" class="flex flex-wrap items-center gap-2">
+          <div v-if="users?.meta" class="users-pagination-controls">
             <BaseButton
               :disabled="!users.links.first || isLoading"
               variant="ghost"
@@ -470,44 +538,45 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="isLoading && !hasUsers" class="flex min-h-72 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+        <div v-if="isLoading && !hasUsers" class="users-state">
           <BaseSpinner />
         </div>
 
-        <div v-else-if="error && !hasUsers" class="flex min-h-72 flex-col items-center justify-center gap-3 rounded-2xl border border-red-100 bg-red-50/40 p-8 text-center">
-          <h3 class="text-lg font-semibold text-slate-900">Unable to load users</h3>
-          <p class="max-w-md text-sm text-slate-500">{{ error }}</p>
+        <div v-else-if="error && !hasUsers" class="users-state users-state-error">
+          <h3 class="users-state-title">Unable to load users</h3>
+          <p class="users-state-text">{{ error }}</p>
           <BaseButton @click="loadUsers">Try Again</BaseButton>
         </div>
 
-        <div v-else class="space-y-4">
+        <div v-else class="users-table-content">
           <BaseTable
             :columns="tableColumns"
             :rows="userRows"
             empty-text="No users match the current filters."
           >
             <template #cell-name="{ row }">
-              <div class="space-y-1">
-                <p class="font-medium text-slate-900">{{ row.name }}</p>
-                <p class="text-xs text-slate-500">User #{{ row.id }}</p>
+              <div class="users-cell-stack">
+                <p class="users-cell-title">{{ getUserDisplayName(asUserAccount(row)) }}</p>
+                <p class="users-cell-subtext">User #{{ row.id }}</p>
               </div>
             </template>
 
             <template #cell-email="{ value, row }">
-              <div class="space-y-1">
-                <p class="text-sm text-slate-900">{{ value }}</p>
-                <p class="text-xs text-slate-500">
+              <div class="users-cell-stack">
+                <p class="users-cell-text">{{ value }}</p>
+                <p class="users-cell-subtext">
                   Verified: {{ formatUserDate(row.email_verified_at as string | null) }}
                 </p>
               </div>
             </template>
 
             <template #cell-roles="{ value }">
-              <div class="flex flex-wrap gap-2">
+              <div class="users-badge-group">
                 <BaseBadge
                   v-for="role in (value as UserAccount['roles'])"
                   :key="role.id"
                   :variant="getRoleVariant(role.name)"
+                  class="users-role-badge"
                 >
                   {{ role.description || formatUserLabel(role.name) }}
                 </BaseBadge>
@@ -515,17 +584,20 @@ onMounted(async () => {
             </template>
 
             <template #cell-status="{ row }">
-              <BaseBadge :variant="getStatusVariant((row.employee as UserAccount['employee'])?.status)">
+              <BaseBadge
+                :variant="getStatusVariant((row.employee as UserAccount['employee'])?.status)"
+                class="users-status-badge"
+              >
                 {{ formatUserLabel((row.employee as UserAccount['employee'])?.status) }}
               </BaseBadge>
             </template>
 
             <template #cell-employee="{ row }">
-              <div class="space-y-1">
-                <p class="text-sm font-medium text-slate-900">
+              <div class="users-cell-stack">
+                <p class="users-cell-title users-cell-title-compact">
                   {{ (row.employee as UserAccount['employee'])?.full_name || '--' }}
                 </p>
-                <p class="text-xs text-slate-500">
+                <p class="users-cell-subtext">
                   {{
                     (row.employee as UserAccount['employee'])?.employee_code ||
                     (row.employee_id as number | null) ||
@@ -536,13 +608,13 @@ onMounted(async () => {
             </template>
 
             <template #cell-created_at="{ value }">
-              <span class="text-sm text-slate-600">{{ formatUserDate(value as string | null) }}</span>
+              <span class="users-cell-text users-created-at">{{ formatUserDate(value as string | null) }}</span>
             </template>
 
             <template #cell-actions="{ row }">
-              <div class="flex justify-end">
+              <div class="users-actions-cell">
                 <ActionMenu
-                  :aria-label="`Actions for ${(row.name as string) || 'user'}`"
+                  :aria-label="`Actions for ${getUserDisplayName(asUserAccount(row), 'user')}`"
                   :items="getUserActions(asUserAccount(row))"
                   @select="handleActionSelect(asUserAccount(row), $event)"
                 />
@@ -552,10 +624,12 @@ onMounted(async () => {
 
           <div
             v-if="users?.meta && users.meta.total > 0"
-            class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+            class="users-table-footer"
           >
-            <p>{{ pageSummary }}</p>
-            <p>Filters supported: search, role_id, employee_status, employee_id, per_page.</p>
+            <p class="users-table-footer-text">{{ pageSummary }}</p>
+            <p class="users-table-footer-text users-table-footer-note">
+              Filters: name, email, user type, status, employee ID, and rows per page.
+            </p>
           </div>
         </div>
       </div>
@@ -601,3 +675,277 @@ onMounted(async () => {
     />
   </main>
 </template>
+
+<style scoped>
+.users-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.users-page-header,
+.users-table-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.users-page-copy,
+.users-table-heading,
+.users-cell-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.users-page-copy,
+.users-table-heading,
+.users-cell-stack {
+  gap: 0.2rem;
+}
+
+.users-page-header {
+  margin-bottom: 0.15rem;
+}
+
+.users-page-header-actions,
+.users-toolbar-actions,
+.users-pagination-controls,
+.users-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.users-page-title,
+.users-table-title,
+.users-state-title,
+.users-cell-title,
+.users-cell-text {
+  color: hsl(var(--foreground));
+}
+
+.users-page-title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.users-page-subtitle,
+.users-table-summary,
+.users-state-text,
+.users-cell-subtext,
+.users-table-footer-text {
+  color: hsl(var(--muted-foreground));
+}
+
+.users-page-subtitle,
+.users-table-summary,
+.users-table-footer-text {
+  font-size: var(--text-sm);
+}
+
+.users-toolbar-card,
+.users-table-card {
+  overflow: hidden;
+  border: 1px solid hsl(var(--border-gray));
+  box-shadow: var(--shadow-card);
+}
+
+.users-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.875rem 1rem;
+  padding: 1rem 1.1rem;
+}
+
+.users-toolbar-filters {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.5fr) repeat(4, minmax(10.5rem, 1fr));
+  flex: 1;
+  gap: 0.85rem;
+}
+
+.users-toolbar-filter {
+  min-width: 0;
+}
+
+.users-toolbar-filter-search {
+  min-width: 15rem;
+}
+
+.users-toolbar-filter-rows {
+  min-width: 8rem;
+}
+
+.users-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.users-table-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem 1.05rem;
+}
+
+.users-table-topbar {
+  align-items: center;
+  padding-bottom: 0.2rem;
+}
+
+.users-table-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.users-pagination-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.users-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 16rem;
+  padding: 1rem;
+  text-align: center;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: 1rem;
+  background: hsl(var(--card));
+}
+
+.users-state-error {
+  border-color: hsl(var(--destructive) / 0.18);
+  background: hsl(var(--destructive) / 0.04);
+}
+
+.users-state-text {
+  max-width: 36rem;
+}
+
+.users-table-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.users-cell-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.users-cell-title-compact {
+  font-weight: 600;
+}
+
+.users-cell-text {
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+
+.users-cell-subtext {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.users-badge-group {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.users-role-badge,
+.users-status-badge {
+  min-height: 1.75rem;
+  font-size: 0.72rem;
+}
+
+.users-created-at {
+  white-space: nowrap;
+}
+
+.users-actions-cell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.users-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: 1rem;
+  background: hsl(var(--secondary) / 0.14);
+}
+
+.users-table-footer-note {
+  text-align: right;
+}
+
+.users-table-card :deep(.base-table-shell) {
+  border: 1px solid hsl(var(--border-gray));
+  box-shadow: none;
+}
+
+.users-table-card :deep(.base-table th),
+.users-table-card :deep(.base-table td) {
+  padding: 0.72rem 0.85rem;
+}
+
+.users-table-card :deep(.base-table th) {
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.users-table-card :deep(.base-table tbody tr:hover) {
+  background: hsl(var(--secondary) / 0.24);
+}
+
+@media (max-width: 1280px) {
+  .users-toolbar-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .users-page-header,
+  .users-table-topbar,
+  .users-table-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .users-page-header-actions,
+  .users-toolbar-actions,
+  .users-pagination-controls {
+    justify-content: flex-start;
+  }
+
+  .users-toolbar {
+    align-items: stretch;
+  }
+
+  .users-toolbar-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .users-table-footer-note {
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .users-toolbar-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

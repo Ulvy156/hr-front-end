@@ -14,7 +14,8 @@ export interface EmployeePositionListResponse {
 
 export interface EmployeeManager {
   id: number
-  name: string
+  name?: string | null
+  full_name?: string | null
 }
 
 export interface EmployeeBranch {

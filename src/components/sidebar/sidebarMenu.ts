@@ -1,14 +1,26 @@
 import type { Component } from 'vue'
-import { ROLES, type Role } from '@/constants/roles'
 import {
+  ATTENDANCE_ACCESS_PERMISSIONS,
+  DASHBOARD_ACCESS_PERMISSIONS,
+  EMPLOYEE_ACCESS_PERMISSIONS,
+  LEAVE_ACCESS_PERMISSIONS,
+  PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+  PAYROLL_RUN_ACCESS_PERMISSIONS,
+  PAYROLL_SALARY_ACCESS_PERMISSIONS,
+  USER_MANAGEMENT_ALL_PERMISSIONS,
+} from '@/constants/accessControl'
+import { PERMISSIONS, type Permission } from '@/constants/permissions'
+import {
+  Banknote,
   CalendarCheck,
   CalendarClock,
-  CircleDollarSign,
+  FileText,
   History,
   LayoutDashboard,
   User,
   UserCog,
   Users,
+  Wallet,
 } from 'lucide-vue-next'
 
 export type SidebarMenuItem = {
@@ -17,7 +29,10 @@ export type SidebarMenuItem = {
   path: string
   icon: Component
   section: 'main' | 'management' | 'account'
-  allowedRoles?: Role[]
+  permission?: Permission
+  anyPermissions?: Permission[]
+  allPermissions?: Permission[]
+  requiresEmployeeSelfService?: boolean
 }
 
 export const sidebarMenu: SidebarMenuItem[] = [
@@ -27,6 +42,7 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/dashboard',
     icon: LayoutDashboard,
     section: 'main',
+    anyPermissions: DASHBOARD_ACCESS_PERMISSIONS,
   },
   {
     key: 'attendance',
@@ -34,6 +50,7 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/attendance',
     icon: CalendarCheck,
     section: 'main',
+    anyPermissions: ATTENDANCE_ACCESS_PERMISSIONS,
   },
   {
     key: 'leave',
@@ -41,14 +58,7 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/leave',
     icon: CalendarClock,
     section: 'main',
-    allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
-  },
-  {
-    key: 'payroll',
-    label: 'Payroll',
-    path: '/payroll',
-    icon: CircleDollarSign,
-    section: 'management',
+    anyPermissions: LEAVE_ACCESS_PERMISSIONS,
   },
   {
     key: 'employees',
@@ -56,7 +66,7 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/employees',
     icon: Users,
     section: 'management',
-    allowedRoles: [ROLES.ADMIN, ROLES.HR],
+    anyPermissions: EMPLOYEE_ACCESS_PERMISSIONS,
   },
   {
     key: 'users',
@@ -64,7 +74,23 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/users',
     icon: UserCog,
     section: 'management',
-    allowedRoles: [ROLES.ADMIN],
+    allPermissions: USER_MANAGEMENT_ALL_PERMISSIONS,
+  },
+  {
+    key: 'payroll-runs',
+    label: 'Payroll Runs',
+    path: '/payroll/runs',
+    icon: Wallet,
+    section: 'management',
+    anyPermissions: PAYROLL_RUN_ACCESS_PERMISSIONS,
+  },
+  {
+    key: 'payroll-salaries',
+    label: 'Salary Setup',
+    path: '/payroll/salaries',
+    icon: Banknote,
+    section: 'management',
+    anyPermissions: PAYROLL_SALARY_ACCESS_PERMISSIONS,
   },
   {
     key: 'profile',
@@ -74,11 +100,20 @@ export const sidebarMenu: SidebarMenuItem[] = [
     section: 'account',
   },
   {
+    key: 'payroll-my-payslips',
+    label: 'My Payslips',
+    path: '/payroll/my-payslips',
+    icon: FileText,
+    section: 'account',
+    anyPermissions: PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+    requiresEmployeeSelfService: true,
+  },
+  {
     key: 'audit',
     label: 'Audit Logs',
     path: '/audit',
     icon: History,
     section: 'management',
-    allowedRoles: [ROLES.ADMIN],
+    permission: PERMISSIONS.AUDIT_LOG_VIEW,
   },
 ]

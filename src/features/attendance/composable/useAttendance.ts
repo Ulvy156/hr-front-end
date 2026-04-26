@@ -1,15 +1,16 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
-import { ROLES, getPrimaryRole, hasRole, isManagementRole } from '@/constants/roles'
 import { useAuth } from '@/features/auth/composable/useAuth'
+import { usePermission } from '@/features/auth/composable/usePermission'
+import { PERMISSIONS } from '@/constants/permissions'
 
-import type { AttendanceRole } from '../interface/attendance.interface'
 import { useAttendanceStore } from '../store/attendanceStore'
 
 export const useAttendance = () => {
   const attendanceStore = useAttendanceStore()
-  const { currentUser } = useAuth()
+  const { canUseEmployeeSelfService, currentUser } = useAuth()
+  const { hasAnyPermission, hasPermission } = usePermission()
   const {
     auditLogs,
     auditLogsError,
@@ -31,22 +32,69 @@ export const useAttendance = () => {
     organizationData,
   } = storeToRefs(attendanceStore)
 
-  const role = computed<AttendanceRole | null>(() => {
-    return getPrimaryRole(currentUser.value)
-  })
-
-  const hasEmployeeRole = computed(() => hasRole(currentUser.value, ROLES.EMPLOYEE))
-  const hasHrRole = computed(() => hasRole(currentUser.value, ROLES.HR))
-  const hasAdminRole = computed(() => hasRole(currentUser.value, ROLES.ADMIN))
-  const hasManagementRole = computed(() => isManagementRole(role.value) || hasHrRole.value || hasAdminRole.value)
+  const canUseSelfAttendanceActions = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.ATTENDANCE_RECORD),
+  )
+  const canViewSelfAttendanceHistory = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.ATTENDANCE_VIEW_SELF),
+  )
+  const canViewSelfAttendanceSummary = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.ATTENDANCE_SUMMARY_SELF),
+  )
+  const canRequestAttendanceCorrection = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.ATTENDANCE_CORRECTION_REQUEST),
+  )
+  const canRequestMissingAttendance = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.ATTENDANCE_MISSING_REQUEST),
+  )
+  const canViewOrganizationAttendanceSummary = computed(() =>
+    hasPermission(PERMISSIONS.ATTENDANCE_SUMMARY_ANY),
+  )
+  const canViewAttendanceRecords = computed(() =>
+    hasPermission(PERMISSIONS.ATTENDANCE_VIEW_ANY),
+  )
+  const canManageAttendance = computed(() =>
+    hasPermission(PERMISSIONS.ATTENDANCE_MANAGE),
+  )
+  const canExportAttendance = computed(() =>
+    hasPermission(PERMISSIONS.ATTENDANCE_EXPORT),
+  )
+  const canViewAttendanceAudit = computed(() =>
+    hasPermission(PERMISSIONS.ATTENDANCE_AUDIT_VIEW),
+  )
+  const canAccessAttendanceWorkspace = computed(() =>
+    hasAnyPermission([
+      PERMISSIONS.ATTENDANCE_RECORD,
+      PERMISSIONS.ATTENDANCE_SUMMARY_SELF,
+      PERMISSIONS.ATTENDANCE_SUMMARY_ANY,
+      PERMISSIONS.ATTENDANCE_VIEW_SELF,
+      PERMISSIONS.ATTENDANCE_VIEW_ANY,
+      PERMISSIONS.ATTENDANCE_CORRECTION_REQUEST,
+      PERMISSIONS.ATTENDANCE_MISSING_REQUEST,
+      PERMISSIONS.ATTENDANCE_MANAGE,
+      PERMISSIONS.ATTENDANCE_AUDIT_VIEW,
+    ]),
+  )
 
   return {
-    role,
-    hasEmployeeRole,
-    hasHrRole,
-    hasAdminRole,
-    hasManagementRole,
     currentUser,
+    canUseEmployeeSelfService,
+    canUseSelfAttendanceActions,
+    canViewSelfAttendanceHistory,
+    canViewSelfAttendanceSummary,
+    canRequestAttendanceCorrection,
+    canRequestMissingAttendance,
+    canViewOrganizationAttendanceSummary,
+    canViewAttendanceRecords,
+    canManageAttendance,
+    canExportAttendance,
+    canViewAttendanceAudit,
+    canAccessAttendanceWorkspace,
     auditLogs,
     auditLogsError,
     attendanceList,

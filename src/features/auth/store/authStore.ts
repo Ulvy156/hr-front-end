@@ -6,6 +6,12 @@ import { removeCookie } from '@/utils/cookie'
 
 import type { AuthUser } from '../interface/auth.interface'
 import { authService } from '../services/authService'
+import { getAuthUserPermissionNames } from '../utils/permissions'
+import {
+  canUseEmployeeSelfService,
+  getAuthUserPrimaryRole,
+  hasEmployeeContext,
+} from '../utils/userContext'
 
 const ACCESS_TOKEN_COOKIE_NAME = 'access_token'
 
@@ -18,6 +24,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => user.value !== null)
   const employee = computed(() => user.value?.employee ?? null)
+  const primaryRole = computed(() => getAuthUserPrimaryRole(user.value))
+  const hasEmployeeRecord = computed(() => hasEmployeeContext(user.value))
+  const canUseEmployeeSelfServiceEndpoints = computed(() => canUseEmployeeSelfService(user.value))
+  const roles = computed(() => user.value?.roles ?? [])
+  const permissionNames = computed(() => getAuthUserPermissionNames(user.value))
   const addresses = computed(() => employee.value?.addresses ?? [])
   const emergencyContacts = computed(() => employee.value?.emergency_contacts ?? [])
   const positions = computed(() => employee.value?.employee_positions ?? [])
@@ -65,6 +76,11 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     employee,
+    primaryRole,
+    hasEmployeeRecord,
+    canUseEmployeeSelfServiceEndpoints,
+    roles,
+    permissionNames,
     addresses,
     emergencyContacts,
     positions,

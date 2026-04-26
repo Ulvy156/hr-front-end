@@ -25,6 +25,8 @@ const router = useRouter()
 
 const {
   employee,
+  canViewSelfLeaveBalances,
+  canViewSelfLeaveRequests,
   canCreateRequests,
   leaveTypes,
   leaveBalances,
@@ -91,8 +93,8 @@ const isInitialLoading = computed(() => {
   return (
     (isLeaveTypesLoading.value && !leaveTypes.value.length) ||
     (isPublicHolidaysLoading.value && !publicHolidays.value.length) ||
-    (isLeaveBalancesLoading.value && !leaveBalances.value.length) ||
-    (isPendingRequestsLoading.value && !pendingRequests.value)
+    (canViewSelfLeaveBalances.value && isLeaveBalancesLoading.value && !leaveBalances.value.length) ||
+    (canViewSelfLeaveRequests.value && isPendingRequestsLoading.value && !pendingRequests.value)
   )
 })
 
@@ -185,8 +187,11 @@ const balanceMetricHelper = computed(() => {
 const loadPage = async () => {
   const tasks: Array<Promise<unknown>> = [fetchLeaveTypes(), fetchPublicHolidays()]
 
-  if (canCreateRequests.value) {
+  if (canViewSelfLeaveBalances.value) {
     tasks.push(fetchLeaveBalances())
+  }
+
+  if (canViewSelfLeaveRequests.value || canCreateRequests.value) {
     tasks.push(fetchPendingRequests())
   }
 
@@ -229,9 +234,9 @@ onMounted(async () => {
           Back to Leave Requests
         </BaseButton>
         <div class="leave-request-title-block">
-          <h1 class="leave-request-title">Submit Leave Request</h1>
+          <h1 class="leave-request-title">Request Leave</h1>
           <p class="leave-request-subtitle">
-            Complete the request form using the current leave policy and API-backed balance data.
+            Fill in the form to request leave and review your current balance.
           </p>
         </div>
       </div>
@@ -239,9 +244,9 @@ onMounted(async () => {
 
     <BaseCard v-if="!canCreateRequests" class="leave-request-state-card">
       <div class="leave-request-state">
-        <h2 class="leave-request-state-title">Leave request access is unavailable</h2>
+        <h2 class="leave-request-state-title">Leave requests are unavailable</h2>
         <p class="leave-request-state-text">
-          This account does not have an employee profile that can submit leave requests in the current auth state.
+          This account does not currently have permission to create leave requests.
         </p>
         <BaseButton variant="ghost" @click="goBack">Back to Leave Requests</BaseButton>
       </div>
@@ -249,9 +254,9 @@ onMounted(async () => {
 
     <BaseCard v-else-if="isInitialLoading" class="leave-request-state-card">
       <div class="leave-request-state">
-        <h2 class="leave-request-state-title">Loading leave request form</h2>
+        <h2 class="leave-request-state-title">Loading leave form</h2>
         <p class="leave-request-state-text">
-          Fetching leave types, current balances, and checking for any pending leave request.
+          Loading leave types, balances, and pending requests.
         </p>
       </div>
     </BaseCard>
@@ -270,7 +275,10 @@ onMounted(async () => {
       </div>
     </BaseCard>
 
-    <BaseCard v-else-if="pendingRequestsError && !pendingRequests" class="leave-request-state-card">
+    <BaseCard
+      v-else-if="(canViewSelfLeaveRequests || canCreateRequests) && pendingRequestsError && !pendingRequests"
+      class="leave-request-state-card"
+    >
       <div class="leave-request-state">
         <h2 class="leave-request-state-title">Unable to verify pending requests</h2>
         <p class="leave-request-state-text">{{ pendingRequestsError }}</p>
@@ -281,7 +289,7 @@ onMounted(async () => {
       </div>
     </BaseCard>
 
-    <BaseCard v-else-if="hasPendingRequest" class="leave-request-state-card">
+    <BaseCard v-else-if="(canViewSelfLeaveRequests || canCreateRequests) && hasPendingRequest" class="leave-request-state-card">
       <div class="leave-request-state">
         <h2 class="leave-request-state-title">You already have a pending request</h2>
         <p class="leave-request-state-text">
@@ -480,9 +488,9 @@ onMounted(async () => {
         <div v-if="selectedLeaveType" class="leave-policy-card">
           <div class="leave-policy-header">
             <div>
-              <h2 class="leave-policy-title">Policy Details</h2>
+              <h2 class="leave-policy-title">Leave Rules</h2>
               <p class="leave-policy-text">
-                Extra request constraints returned by the API for this leave type.
+                Rules that apply to this leave type.
               </p>
             </div>
           </div>
@@ -512,7 +520,7 @@ onMounted(async () => {
         <BaseButton variant="ghost" @click="goBack">Cancel</BaseButton>
         <BaseButton :loading="isSubmitting" @click="handleSubmit">
           <Send :size="16" />
-          Submit Request
+          Send Request
         </BaseButton>
       </div>
     </BaseCard>

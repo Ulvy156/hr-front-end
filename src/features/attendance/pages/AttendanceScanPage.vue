@@ -19,6 +19,7 @@ type ScanState = 'processing' | 'success' | 'completed' | 'error'
 
 const router = useRouter()
 const {
+  canUseSelfAttendanceActions,
   checkIn,
   checkOut,
   fetchEmployeeAttendance,
@@ -57,6 +58,13 @@ const runScanFlow = async () => {
   message.value = 'Preparing your attendance action...'
   performedAction.value = null
   actionTimestamp.value = null
+
+  if (!canUseSelfAttendanceActions.value) {
+    state.value = 'error'
+    message.value = 'Self-service attendance is unavailable for this account.'
+    todayAttendance.value = null
+    return
+  }
 
   try {
     const today = await loadTodayAttendance()

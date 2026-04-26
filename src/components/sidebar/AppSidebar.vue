@@ -2,8 +2,10 @@
 import { ChevronLeft, LogOut } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 
-import { getPrimaryRole, hasAnyRole } from '@/constants/roles'
+import { getPrimaryRole } from '@/constants/roles'
+import { usePermission } from '@/features/auth/composable/usePermission'
 import { useAuthStore } from '@/features/auth/store/authStore'
+import { canUseEmployeeSelfService } from '@/features/auth/utils/userContext'
 
 import { sidebarMenu, type SidebarMenuItem } from './sidebarMenu'
 
@@ -18,6 +20,7 @@ defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { hasAllPermissions, hasAnyPermission, hasPermission } = usePermission()
 const { user } = storeToRefs(authStore)
 
 const sectionLabels = {
@@ -66,11 +69,23 @@ const userInitials = computed(() => {
 
 const visibleMenuItems = computed(() =>
   sidebarMenu.filter((item) => {
-    if (!item.allowedRoles?.length) {
-      return true
+    if (item.requiresEmployeeSelfService && !canUseEmployeeSelfService(user.value)) {
+      return false
     }
 
-    return hasAnyRole(user.value, item.allowedRoles)
+    if (item.permission && !hasPermission(item.permission)) {
+      return false
+    }
+
+    if (item.allPermissions?.length && !hasAllPermissions(item.allPermissions)) {
+      return false
+    }
+
+    if (item.anyPermissions?.length && !hasAnyPermission(item.anyPermissions)) {
+      return false
+    }
+
+    return true
   }),
 )
 

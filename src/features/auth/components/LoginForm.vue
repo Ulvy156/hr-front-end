@@ -84,6 +84,7 @@ const handleSubmit = async () => {
         name="email"
         placeholder="you@example.com"
         required
+        size="large"
         type="email"
       >
         <template #suffix>
@@ -103,6 +104,7 @@ const handleSubmit = async () => {
         name="password"
         placeholder="Enter your password"
         required
+        size="large"
         :type="showPassword ? 'text' : 'password'"
       >
         <template #suffix>

@@ -7,6 +7,20 @@ export interface UserRole {
   id: number
   name: string
   description: string
+  permissions?: Array<UserPermission | string>
+}
+
+export interface UserPermission {
+  id?: number
+  name: string
+  description?: string | null
+}
+
+export interface AvailableEmployeeUser {
+  id: number
+  name: string
+  email: string
+  roles: UserRole[]
 }
 
 export interface UserEmployeeSummary {
@@ -34,6 +48,7 @@ export interface UserAccount {
   employee_id: number | null
   employee: UserEmployeeSummary | null
   roles: UserRole[]
+  permissions?: Array<UserPermission | string> | null
   created_at: string | null
   updated_at: string | null
 }
@@ -66,8 +81,35 @@ export interface UserListResponse {
   meta: UserPaginationMeta
 }
 
+export interface AvailableEmployeeUserListResponse {
+  data: AvailableEmployeeUser[]
+}
+
 export interface UserRoleListResponse {
   data: UserRole[]
+}
+
+export interface UserAccessSummary {
+  id: number
+  name: string
+  email: string
+  employee_id: number | null
+  employee: UserEmployeeSummary | null
+  roles: UserRole[]
+  direct_permissions: string[]
+  role_permissions: string[]
+  effective_permissions: string[]
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface UserPermissionsUpdatePayload {
+  permissions: string[]
+}
+
+export interface UserAccessUpdatePayload {
+  roles?: string[]
+  permissions?: string[]
 }
 
 export interface UserListParams {
@@ -82,7 +124,7 @@ export interface UserCreatePayload {
   name: string
   email: string
   password: string
-  employee_id: number
+  employee_id?: number
   role_ids: number[]
 }
 

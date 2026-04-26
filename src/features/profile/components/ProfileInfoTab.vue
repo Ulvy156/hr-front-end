@@ -150,6 +150,7 @@ watch(
               label="Name"
               placeholder="Your full name"
               required
+              size="large"
             />
             <BaseInput
               v-model="accountForm.email"
@@ -157,6 +158,7 @@ watch(
               label="Email"
               placeholder="name@example.com"
               required
+              size="large"
               type="email"
             />
           </div>
@@ -188,18 +190,21 @@ watch(
               :disabled="!canEditEmployeeInfo || !profile.employee"
               label="Phone"
               placeholder="Primary work phone"
+              size="large"
             />
             <BaseInput
               v-model="personalForm.personal_phone"
               :disabled="!canEditEmployeeInfo || !profile.employee"
               label="Personal Phone"
               placeholder="Personal contact number"
+              size="large"
             />
             <BaseInput
               v-model="personalForm.personal_email"
               :disabled="!canEditEmployeeInfo || !profile.employee"
               label="Personal Email"
               placeholder="personal@example.com"
+              size="large"
               type="email"
             />
             <BaseDropdown

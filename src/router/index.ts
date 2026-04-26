@@ -1,8 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { ROLES, hasAnyRole, type Role } from '@/constants/roles'
+import {
+  ATTENDANCE_ACCESS_PERMISSIONS,
+  DASHBOARD_ACCESS_PERMISSIONS,
+  EMPLOYEE_ACCESS_PERMISSIONS,
+  LEAVE_ACCESS_PERMISSIONS,
+  PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+  PAYROLL_RUN_ACCESS_PERMISSIONS,
+  USER_MANAGEMENT_ALL_PERMISSIONS,
+} from '@/constants/accessControl'
+import { PERMISSIONS } from '@/constants/permissions'
 import { sidebarMenu } from '@/components/sidebar/sidebarMenu'
+import {
+  hasUserAllPermissions,
+  hasUserAnyPermission,
+  hasUserPermission,
+} from '@/features/auth/utils/permissions'
 import { useAuthStore } from '@/features/auth/store/authStore'
+import { canUseEmployeeSelfService } from '@/features/auth/utils/userContext'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,11 +35,19 @@ const router = createRouter({
           path: 'dashboard',
           name: 'dashboard',
           component: () => import('../views/HomeView.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: DASHBOARD_ACCESS_PERMISSIONS,
+          },
         },
         {
           path: 'attendance',
           name: 'attendance',
           component: () => import('@/features/attendance/pages/AttendancePage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: ATTENDANCE_ACCESS_PERMISSIONS,
+          },
         },
         {
           path: 'leave',
@@ -32,7 +55,7 @@ const router = createRouter({
           component: () => import('@/features/leave/pages/LeaveRequestsPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+            anyPermissions: LEAVE_ACCESS_PERMISSIONS,
           },
         },
         {
@@ -41,7 +64,9 @@ const router = createRouter({
           component: () => import('@/features/leave/pages/LeaveRequestPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+            permission: PERMISSIONS.LEAVE_REQUEST_CREATE,
+            requiresEmployeeSelfService: true,
+            employeeSelfServiceFallback: { name: 'leave' },
           },
         },
         {
@@ -50,7 +75,13 @@ const router = createRouter({
           component: () => import('@/features/leave/pages/LeaveRequestDetailPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.EMPLOYEE, ROLES.MANAGER, ROLES.HR, ROLES.ADMIN],
+            anyPermissions: [
+              PERMISSIONS.LEAVE_APPROVE_MANAGER,
+              PERMISSIONS.LEAVE_APPROVE_HR,
+              PERMISSIONS.LEAVE_REQUEST_VIEW_SELF,
+              PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED,
+              PERMISSIONS.LEAVE_REQUEST_VIEW_ANY,
+            ],
           },
         },
         {
@@ -59,7 +90,7 @@ const router = createRouter({
           component: () => import('@/features/employees/pages/EmployeesListPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.ADMIN, ROLES.HR],
+            anyPermissions: EMPLOYEE_ACCESS_PERMISSIONS,
           },
         },
         {
@@ -68,7 +99,12 @@ const router = createRouter({
           component: () => import('@/features/employees/pages/EmployeeFormPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.HR],
+            allPermissions: [
+              PERMISSIONS.EMPLOYEE_MANAGE,
+              PERMISSIONS.EMPLOYEE_USER_LINK_VIEW,
+              PERMISSIONS.POSITION_VIEW,
+              PERMISSIONS.LOCATION_VIEW,
+            ],
           },
         },
         {
@@ -77,7 +113,7 @@ const router = createRouter({
           component: () => import('@/features/employees/pages/EmployeeDetailPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.ADMIN, ROLES.HR],
+            anyPermissions: EMPLOYEE_ACCESS_PERMISSIONS,
           },
         },
         {
@@ -86,7 +122,12 @@ const router = createRouter({
           component: () => import('@/features/employees/pages/EmployeeFormPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.HR],
+            allPermissions: [
+              PERMISSIONS.EMPLOYEE_MANAGE,
+              PERMISSIONS.EMPLOYEE_USER_LINK_VIEW,
+              PERMISSIONS.POSITION_VIEW,
+              PERMISSIONS.LOCATION_VIEW,
+            ],
           },
         },
         {
@@ -95,7 +136,9 @@ const router = createRouter({
           component: () => import('@/features/attendance/pages/AttendanceScanPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.EMPLOYEE, ROLES.HR],
+            permission: PERMISSIONS.ATTENDANCE_RECORD,
+            requiresEmployeeSelfService: true,
+            employeeSelfServiceFallback: { name: 'attendance' },
           },
         },
         {
@@ -109,7 +152,45 @@ const router = createRouter({
           component: () => import('@/features/audit/pages/AuditLogsPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.ADMIN],
+            permission: PERMISSIONS.AUDIT_LOG_VIEW,
+          },
+        },
+        {
+          path: 'payroll/runs',
+          name: 'payroll-runs',
+          component: () => import('@/features/payroll/pages/PayrollRunsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: PAYROLL_RUN_ACCESS_PERMISSIONS,
+          },
+        },
+        {
+          path: 'payroll/runs/:id',
+          name: 'payroll-run-detail',
+          component: () => import('@/features/payroll/pages/PayrollRunDetailPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: PAYROLL_RUN_ACCESS_PERMISSIONS,
+          },
+        },
+        {
+          path: 'payroll/salaries',
+          name: 'payroll-salaries',
+          component: () => import('@/features/payroll/pages/PayrollSalariesPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permission: PERMISSIONS.PAYROLL_SALARY_VIEW,
+          },
+        },
+        {
+          path: 'payroll/my-payslips',
+          name: 'payroll-my-payslips',
+          component: () => import('@/features/payroll/pages/PayrollMyPayslipsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+            requiresEmployeeSelfService: true,
+            employeeSelfServiceFallback: { name: 'dashboard' },
           },
         },
         {
@@ -118,7 +199,24 @@ const router = createRouter({
           component: () => import('@/features/users/pages/UsersPage.vue'),
           meta: {
             requiresAuth: true,
-            allowedRoles: [ROLES.ADMIN],
+            allPermissions: USER_MANAGEMENT_ALL_PERMISSIONS,
+          },
+        },
+        {
+          path: 'users/:id/permissions',
+          name: 'user-permissions',
+          component: () => import('@/features/users/pages/UserPermissionsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            allPermissions: [
+              PERMISSIONS.USER_VIEW,
+              PERMISSIONS.ROLE_VIEW,
+              PERMISSIONS.PERMISSION_VIEW,
+            ],
+            anyPermissions: [
+              PERMISSIONS.USER_ROLE_ASSIGN,
+              PERMISSIONS.USER_PERMISSION_ASSIGN,
+            ],
           },
         },
         {
@@ -150,14 +248,25 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const guestOnly = to.matched.some((record) => record.meta.guestOnly)
-  const metaAllowedRoles = to.matched.flatMap((record) => {
-    const allowedRoles = record.meta.allowedRoles as Role[] | undefined
+  const requiredPermission = to.matched.find((record) => typeof record.meta.permission === 'string')?.meta
+    .permission as string | undefined
+  const anyPermissions = to.matched.flatMap((record) => {
+    const metaPermissions = record.meta.anyPermissions as string[] | undefined
 
-    return Array.isArray(allowedRoles) ? allowedRoles : []
+    return Array.isArray(metaPermissions) ? metaPermissions : []
   })
-  const sidebarAllowedRoles =
-    sidebarMenu.find((item) => item.path === to.path)?.allowedRoles ?? []
-  const allowedRoles = metaAllowedRoles.length ? metaAllowedRoles : sidebarAllowedRoles
+  const allPermissions = to.matched.flatMap((record) => {
+    const metaPermissions = record.meta.allPermissions as string[] | undefined
+
+    return Array.isArray(metaPermissions) ? metaPermissions : []
+  })
+  const requiresEmployeeSelfService = to.matched.some(
+    (record) => record.meta.requiresEmployeeSelfService,
+  )
+  const employeeSelfServiceFallback =
+    to.matched.find((record) => record.meta.employeeSelfServiceFallback)?.meta
+      .employeeSelfServiceFallback
+  const sidebarItem = sidebarMenu.find((item) => item.path === to.path)
 
   if (!authStore.initialized) {
     try {
@@ -180,9 +289,21 @@ router.beforeEach(async (to) => {
     return { path: '/dashboard' }
   }
 
-  if (requiresAuth && allowedRoles.length) {
-    if (!hasAnyRole(authStore.user, allowedRoles)) {
+  if (requiresAuth) {
+    const canAccessByPermission =
+      (!requiredPermission || hasUserPermission(authStore.user, requiredPermission)) &&
+      (!anyPermissions.length || hasUserAnyPermission(authStore.user, anyPermissions)) &&
+      (!allPermissions.length || hasUserAllPermissions(authStore.user, allPermissions)) &&
+      (!sidebarItem?.permission || hasUserPermission(authStore.user, sidebarItem.permission)) &&
+      (!sidebarItem?.anyPermissions?.length || hasUserAnyPermission(authStore.user, sidebarItem.anyPermissions)) &&
+      (!sidebarItem?.allPermissions?.length || hasUserAllPermissions(authStore.user, sidebarItem.allPermissions))
+
+    if (!canAccessByPermission) {
       return authStore.isAuthenticated ? { path: '/dashboard' } : { path: '/login' }
+    }
+
+    if (requiresEmployeeSelfService && !canUseEmployeeSelfService(authStore.user)) {
+      return employeeSelfServiceFallback || { path: '/dashboard' }
     }
   }
 })

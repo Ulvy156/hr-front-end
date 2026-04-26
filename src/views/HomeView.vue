@@ -12,10 +12,17 @@ import {
   UserCheck,
   Users,
 } from 'lucide-vue-next'
-import { ROLES, isOneOfRoles } from '@/constants/roles'
+import {
+  ATTENDANCE_ACCESS_PERMISSIONS,
+  EMPLOYEE_ACCESS_PERMISSIONS,
+  USER_MANAGEMENT_ALL_PERMISSIONS,
+} from '@/constants/accessControl'
+import { PERMISSIONS } from '@/constants/permissions'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
+import { useAuth } from '@/features/auth/composable/useAuth'
+import { usePermission } from '@/features/auth/composable/usePermission'
 import DashboardAdminSection from '@/features/dashboard/components/DashboardAdminSection.vue'
 import DashboardIssueCards from '@/features/dashboard/components/DashboardIssueCards.vue'
 import DashboardQuickActions from '@/features/dashboard/components/DashboardQuickActions.vue'
@@ -27,6 +34,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import { useDashboard } from '@/features/dashboard/composable/useDashboard'
 import type {
   AdminDashboardResponse,
+  DashboardResponse,
   EmployeeDashboardResponse,
   EmployeeDashboardRecord,
   HrDashboardResponse,
@@ -35,28 +43,69 @@ import type {
 import type { DashboardIssueCardItem } from '@/features/dashboard/components/DashboardIssueCards.vue'
 
 const { dashboard, error, isLoading, fetchDashboard, lastUpdated } = useDashboard()
+const { canUseEmployeeSelfService } = useAuth()
+const { hasAllPermissions, hasAnyPermission, hasPermission } = usePermission()
 const router = useRouter()
 const issueSectionRef = ref<HTMLElement | null>(null)
 const recordsSectionRef = ref<HTMLElement | null>(null)
 
 const employeeDashboard = computed(() => {
-  if (!isOneOfRoles(dashboard.value?.role, [ROLES.EMPLOYEE])) return null
-  return dashboard.value as EmployeeDashboardResponse
+  if (!isEmployeeDashboardResponse(dashboard.value)) {
+    return null
+  }
+
+  return dashboard.value
 })
 
 const hrDashboard = computed(() => {
-  if (!isOneOfRoles(dashboard.value?.role, [ROLES.HR])) return null
-  return dashboard.value as HrDashboardResponse
+  if (!isWorkforceDashboardResponse(dashboard.value) || isAdminDashboardResponse(dashboard.value)) {
+    return null
+  }
+
+  return dashboard.value
 })
 
 const adminDashboard = computed(() => {
-  if (!isOneOfRoles(dashboard.value?.role, [ROLES.ADMIN])) return null
-  return dashboard.value as AdminDashboardResponse
+  if (!isAdminDashboardResponse(dashboard.value)) {
+    return null
+  }
+
+  return dashboard.value
 })
 
 const activeIssueFilter = ref<string | null>(null)
 
 const hasDashboardData = computed(() => dashboard.value !== null)
+const canAccessAttendancePage = computed(() => hasAnyPermission(ATTENDANCE_ACCESS_PERMISSIONS))
+const canAccessEmployeesPage = computed(() => hasAnyPermission(EMPLOYEE_ACCESS_PERMISSIONS))
+const canAccessUsersPage = computed(() => hasAllPermissions(USER_MANAGEMENT_ALL_PERMISSIONS))
+const canViewPersonalAttendanceSummary = computed(() =>
+  canUseEmployeeSelfService.value &&
+  hasAnyPermission([PERMISSIONS.ATTENDANCE_SUMMARY_SELF, PERMISSIONS.ATTENDANCE_VIEW_SELF]),
+)
+const canViewPersonalAttendanceHistory = computed(() =>
+  canUseEmployeeSelfService.value &&
+  hasAnyPermission([PERMISSIONS.ATTENDANCE_VIEW_SELF, PERMISSIONS.ATTENDANCE_VIEW_ANY]),
+)
+const canViewWorkforceOverview = computed(() =>
+  hasAnyPermission([
+    PERMISSIONS.ATTENDANCE_SUMMARY_ANY,
+    PERMISSIONS.ATTENDANCE_VIEW_ANY,
+    PERMISSIONS.ATTENDANCE_MANAGE,
+    ...EMPLOYEE_ACCESS_PERMISSIONS,
+  ]),
+)
+const canViewWorkforceAttendance = computed(() =>
+  hasAnyPermission([PERMISSIONS.ATTENDANCE_VIEW_ANY, PERMISSIONS.ATTENDANCE_MANAGE]),
+)
+const canViewLeaveOverview = computed(() =>
+  hasAnyPermission([
+    PERMISSIONS.LEAVE_APPROVE_MANAGER,
+    PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED,
+    PERMISSIONS.LEAVE_REQUEST_VIEW_ANY,
+    PERMISSIONS.LEAVE_APPROVE_HR,
+  ]),
+)
 
 const formattedLastUpdated = computed(() => {
   if (!lastUpdated.value) return 'Never'
@@ -163,28 +212,35 @@ const workforcePrimaryCards = computed<DashboardSummaryCardItem[]>(() => {
 const hrSecondaryCards = computed<DashboardSummaryCardItem[]>(() => {
   if (!hrDashboard.value?.summary) return []
 
-  return [
-    {
+  const cards: DashboardSummaryCardItem[] = []
+
+  if (canViewWorkforceAttendance.value) {
+    cards.push({
       key: 'missingAttendanceCount',
       label: 'Missing Attendance',
       value: formatCount(hrDashboard.value.summary.missingAttendanceCount),
       helper: 'Needs follow-up',
       icon: ShieldAlert,
-    },
-    {
+    })
+  }
+
+  if (canViewLeaveOverview.value) {
+    cards.push({
       key: 'employeesOnLeaveTodayCount',
       label: 'Employees On Leave Today',
       value: formatCount(hrDashboard.value.summary.employeesOnLeaveTodayCount),
       helper: 'Approved leave',
       icon: Briefcase,
-    },
-  ]
+    })
+  }
+
+  return cards
 })
 
 const hrIssueCards = computed<DashboardIssueCardItem[]>(() => {
   const source = hrDashboard.value ?? adminDashboard.value
 
-  if (!source) return []
+  if (!source || !canViewWorkforceAttendance.value) return []
 
   return [
     {
@@ -250,6 +306,20 @@ const workforceRecentRecords = computed(() => {
   })
 })
 
+const employeeQuickActions = computed(() =>
+  employeeDashboard.value?.quickActions.filter((action) => canAccessDashboardAction(action.key)) ?? [],
+)
+
+const hrQuickActions = computed(() =>
+  hrDashboard.value?.quickActions.filter((action) => canAccessDashboardAction(action.key)) ?? [],
+)
+
+const adminQuickActions = computed(() =>
+  adminDashboard.value?.quickActions.filter((action) => canAccessDashboardAction(action.key)) ?? [],
+)
+
+const showAdminSecondaryGrid = computed(() => hrIssueCards.value.length > 0 || canAccessUsersPage.value)
+
 const attendanceRouteLocation = (query?: Record<string, string | number>) => ({
   path: '/attendance',
   query,
@@ -277,10 +347,14 @@ const scrollToSection = (element: HTMLElement | null) => {
 
 const handleDashboardAction = async (actionKey: string) => {
   const targetByAction: Partial<Record<string, RouteLocationRaw>> = {
+    scan_attendance: { path: '/attendance/scan' },
     manage_employees: { path: '/employees' },
     manage_users: { path: '/users' },
     review_attendance: attendanceRouteLocation({ mode: 'review', date: 'today' }),
+    view_attendance_history: attendanceRouteLocation({ view: 'history' }),
     attendance_history: attendanceRouteLocation({ view: 'history' }),
+    profile: { path: '/profile' },
+    change_password: { path: '/profile', query: { tab: 'change-password' } },
   }
 
   const target = targetByAction[actionKey]
@@ -367,6 +441,34 @@ onMounted(async () => {
   await loadDashboard()
 })
 
+function canAccessDashboardAction(actionKey: string) {
+  if (actionKey === 'scan_attendance') {
+    return canUseEmployeeSelfService.value && hasPermission(PERMISSIONS.ATTENDANCE_RECORD)
+  }
+
+  if (actionKey === 'view_attendance_history' || actionKey === 'attendance_history') {
+    return canAccessAttendancePage.value && canViewPersonalAttendanceHistory.value
+  }
+
+  if (actionKey === 'review_attendance') {
+    return canAccessAttendancePage.value && canViewWorkforceAttendance.value
+  }
+
+  if (actionKey === 'manage_employees') {
+    return canAccessEmployeesPage.value
+  }
+
+  if (actionKey === 'manage_users') {
+    return canAccessUsersPage.value
+  }
+
+  if (actionKey === 'profile' || actionKey === 'change_password') {
+    return true
+  }
+
+  return false
+}
+
 function formatStatus(status: string) {
   return status
     .split('_')
@@ -383,6 +485,24 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
   if (status === 'checked_out') return 'default'
   if (status === 'late') return 'warning'
   return 'danger'
+}
+
+function isEmployeeDashboardResponse(
+  value: DashboardResponse | null,
+): value is EmployeeDashboardResponse {
+  return Boolean(value?.summary && 'todayAttendanceStatus' in value.summary)
+}
+
+function isWorkforceDashboardResponse(
+  value: DashboardResponse | null,
+): value is HrDashboardResponse | AdminDashboardResponse {
+  return Boolean(value?.summary && 'totalEmployees' in value.summary)
+}
+
+function isAdminDashboardResponse(
+  value: DashboardResponse | null,
+): value is AdminDashboardResponse {
+  return Boolean(value?.summary && 'totalUsers' in value.summary)
 }
 </script>
 
@@ -432,37 +552,42 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
     </BaseCard>
 
     <template v-else-if="employeeDashboard">
-      <section class="dashboard-stack-section">
+      <section v-if="canViewPersonalAttendanceSummary" class="dashboard-stack-section">
         <DashboardSummaryCards :items="employeePrimaryCards" />
       </section>
 
-      <section class="dashboard-stack-section">
+      <section v-if="canViewPersonalAttendanceSummary" class="dashboard-stack-section">
         <DashboardSummaryCards :items="employeeSecondaryCards" tone="secondary" />
       </section>
 
-      <section class="dashboard-stack-section dashboard-stack-section-contained">
+      <section
+        v-if="employeeQuickActions.length"
+        class="dashboard-stack-section dashboard-stack-section-contained"
+      >
         <DashboardQuickActions
-          :actions="employeeDashboard.quickActions"
+          :actions="employeeQuickActions"
           :next-action="employeeDashboard.summary.nextAction"
           primary-action-key="scan_attendance"
+          @action-click="handleDashboardAction"
         />
       </section>
 
-      <section class="dashboard-stack-section">
+      <section v-if="canViewPersonalAttendanceHistory" class="dashboard-stack-section">
         <DashboardRecentRecords
           :records="employeeDashboard.recentRecords"
-          :role="employeeDashboard.role"
+          :show-employee-column="false"
+          @row-click="handleRecordClick"
           @view-all="handleViewAllRecords"
         />
       </section>
     </template>
 
     <template v-else-if="hrDashboard">
-      <DashboardSummaryCards :items="workforcePrimaryCards" />
+      <DashboardSummaryCards v-if="canViewWorkforceOverview" :items="workforcePrimaryCards" />
 
-      <DashboardSummaryCards :items="hrSecondaryCards" tone="secondary" />
+      <DashboardSummaryCards v-if="hrSecondaryCards.length" :items="hrSecondaryCards" tone="secondary" />
 
-      <div ref="issueSectionRef">
+      <div v-if="hrIssueCards.length" ref="issueSectionRef">
         <DashboardIssueCards
           :active-key="activeIssueFilter"
           :items="hrIssueCards"
@@ -471,14 +596,15 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
       </div>
 
       <DashboardQuickActions
-        :actions="hrDashboard.quickActions ?? []"
+        v-if="hrQuickActions.length"
+        :actions="hrQuickActions"
         @action-click="handleDashboardAction"
       />
 
-      <div ref="recordsSectionRef">
+      <div v-if="canViewWorkforceAttendance" ref="recordsSectionRef">
         <DashboardRecentRecords
           :records="workforceRecentRecords"
-          :role="hrDashboard.role"
+          :show-employee-column="true"
           @row-click="handleRecordClick"
           @view-all="handleViewAllRecords"
         />
@@ -486,25 +612,30 @@ function getSummaryBadgeVariant(status: string): 'default' | 'success' | 'warnin
     </template>
 
     <template v-else-if="adminDashboard">
-      <DashboardSummaryCards :items="workforcePrimaryCards" />
+      <DashboardSummaryCards v-if="canViewWorkforceOverview" :items="workforcePrimaryCards" />
 
-      <div class="dashboard-secondary-grid">
+      <div v-if="showAdminSecondaryGrid" class="dashboard-secondary-grid">
         <DashboardIssueCards
+          v-if="hrIssueCards.length"
           :active-key="activeIssueFilter"
           :items="hrIssueCards"
           @select="handleIssueSelect"
         />
-        <DashboardAdminSection :summary="adminDashboard.summary" />
+        <DashboardAdminSection v-if="canAccessUsersPage" :summary="adminDashboard.summary" />
       </div>
 
       <DashboardQuickActions
-        :actions="adminDashboard.quickActions"
+        v-if="adminQuickActions.length"
+        :actions="adminQuickActions"
         primary-action-key="manage_users"
+        @action-click="handleDashboardAction"
       />
 
       <DashboardRecentRecords
+        v-if="canViewWorkforceAttendance"
         :records="workforceRecentRecords"
-        :role="adminDashboard.role"
+        :show-employee-column="true"
+        @row-click="handleRecordClick"
         @view-all="handleViewAllRecords"
       />
     </template>

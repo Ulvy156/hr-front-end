@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
-import { ROLES, hasRole } from '@/constants/roles'
+import { PERMISSIONS } from '@/constants/permissions'
 import { useAuth } from '@/features/auth/composable/useAuth'
+import { usePermission } from '@/features/auth/composable/usePermission'
 import EmployeeAvatar from '@/features/employees/components/EmployeeAvatar.vue'
 import EmployeeStatusBadge from '@/features/employees/components/EmployeeStatusBadge.vue'
 import EmployeeAddressesTab from '@/features/employees/components/EmployeeAddressesTab.vue'
@@ -21,6 +22,15 @@ import ProfileReadOnlyEmergencyContactsTab from '../components/ProfileReadOnlyEm
 import ProfileReadOnlyPositionsTab from '../components/ProfileReadOnlyPositionsTab.vue'
 
 const activeTab = ref('profile-info')
+const route = useRoute()
+const validTabs = new Set([
+  'profile-info',
+  'employment-info',
+  'addresses',
+  'emergency-contacts',
+  'positions',
+  'change-password',
+])
 
 const {
   currentUser,
@@ -32,8 +42,10 @@ const {
   fetchMe,
 } = useAuth()
 
-const canEditEmployeeSections = computed(() => hasRole(currentUser.value, ROLES.HR))
-const canEditUserAccount = computed(() => hasRole(currentUser.value, ROLES.ADMIN))
+const { hasPermission } = usePermission()
+
+const canEditEmployeeSections = computed(() => hasPermission(PERMISSIONS.EMPLOYEE_MANAGE))
+const canEditUserAccount = computed(() => hasPermission(PERMISSIONS.USER_UPDATE))
 
 const employeeDisplayName = computed(() => {
   if (!employee.value) {
@@ -50,11 +62,31 @@ const employeeDisplayName = computed(() => {
 
 const loadProfile = async () => {
   try {
-    await fetchMe()
+    const profile = await fetchMe()
+
+    if (import.meta.env.DEV) {
+      console.debug('[ProfilePage] employee payload', profile.employee)
+    }
   } catch (error) {
     ElMessage.error(getEmployeeRequestErrorMessage(error, 'Failed to load profile.'))
   }
 }
+
+const syncActiveTabFromRoute = () => {
+  const requestedTab = typeof route.query.tab === 'string' ? route.query.tab : null
+
+  if (requestedTab && validTabs.has(requestedTab)) {
+    activeTab.value = requestedTab
+  }
+}
+
+watch(
+  () => route.query.tab,
+  () => {
+    syncActiveTabFromRoute()
+  },
+  { immediate: true },
+)
 
 onMounted(loadProfile)
 </script>
@@ -78,7 +110,7 @@ onMounted(loadProfile)
           <div class="flex min-w-0 items-center gap-4">
             <EmployeeAvatar
               :name="employeeDisplayName"
-              :photo-url="employee?.profile_photo || employee?.profile_photo_path"
+              :photo-url="employee?.profile_photo || null"
               size="lg"
             />
 

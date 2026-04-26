@@ -340,32 +340,38 @@ onMounted(() => {
           v-model="filters.keyword"
           label="Keyword"
           placeholder="Search across activity details"
+          size="large"
         />
         <BaseInput
           v-model="filters.logName"
           label="Log Name"
           placeholder="Example: attendance"
+          size="large"
         />
         <BaseInput
           v-model="filters.event"
           label="Event"
           placeholder="Example: check_in"
+          size="large"
         />
         <BaseInput
           v-model="filters.causerId"
           label="Causer ID"
           placeholder="Filter by user ID"
+          size="large"
           type="number"
         />
         <BaseInput
           v-model="filters.subjectType"
           label="Subject Type"
           placeholder="Example: App\\Models\\Attendance"
+          size="large"
         />
         <BaseInput
           v-model="filters.subjectId"
           label="Subject ID"
           placeholder="Filter by record ID"
+          size="large"
           type="number"
         />
         <BaseDatePicker

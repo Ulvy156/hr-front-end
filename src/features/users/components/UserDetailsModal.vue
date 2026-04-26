@@ -5,7 +5,12 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 
 import type { UserAccount } from '../interface/user.interface'
-import { formatUserDate, formatUserLabel } from '../utils/user'
+import {
+  formatUserDate,
+  formatUserLabel,
+  getUserDisplayName,
+  USER_MANAGEMENT_LABELS,
+} from '../utils/user'
 
 const props = withDefaults(
   defineProps<{
@@ -62,7 +67,7 @@ const getRoleVariant = (value: string | null | undefined) => {
       <section class="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
         <div class="space-y-1">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Name</p>
-          <p class="text-sm font-medium text-slate-900">{{ user.name }}</p>
+          <p class="text-sm font-medium text-slate-900">{{ getUserDisplayName(user) }}</p>
         </div>
         <div class="space-y-1">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Email</p>
@@ -80,8 +85,8 @@ const getRoleVariant = (value: string | null | undefined) => {
 
       <section class="space-y-3">
         <div>
-          <h3 class="text-sm font-semibold text-slate-900">Assigned Roles</h3>
-          <p class="text-sm text-slate-500">Roles returned by the admin role lookup and user detail API.</p>
+          <h3 class="text-sm font-semibold text-slate-900">{{ USER_MANAGEMENT_LABELS.userTypes }}</h3>
+          <p class="text-sm text-slate-500">This user type controls what the user can open and do.</p>
         </div>
 
         <div class="flex flex-wrap gap-2">
@@ -92,14 +97,14 @@ const getRoleVariant = (value: string | null | undefined) => {
           >
             {{ role.description || formatUserLabel(role.name) }}
           </BaseBadge>
-          <p v-if="!user.roles.length" class="text-sm text-slate-500">No roles assigned.</p>
+          <p v-if="!user.roles.length" class="text-sm text-slate-500">No user type set.</p>
         </div>
       </section>
 
       <section class="space-y-3">
         <div>
           <h3 class="text-sm font-semibold text-slate-900">Linked Employee</h3>
-          <p class="text-sm text-slate-500">Employee information included with the user resource.</p>
+          <p class="text-sm text-slate-500">This is the employee linked to this account.</p>
         </div>
 
         <div

@@ -368,6 +368,7 @@ onMounted(async () => {
                 label="Base Salary"
                 placeholder="Base salary"
                 required
+                size="large"
                 type="number"
               />
               <BaseDatePicker

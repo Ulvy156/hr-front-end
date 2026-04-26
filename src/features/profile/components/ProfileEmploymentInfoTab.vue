@@ -2,18 +2,30 @@
 import BaseCard from '@/components/ui/BaseCard.vue'
 import EmployeeStatusBadge from '@/features/employees/components/EmployeeStatusBadge.vue'
 import type { AuthUserEmployee } from '@/features/auth/interface/auth.interface'
-import { formatEmployeeDate, formatEmployeeStatus } from '@/features/employees/utils/employee'
+import {
+  formatEmployeeDate,
+  formatEmployeeStatus,
+  getEmployeeDisplayName,
+} from '@/features/employees/utils/employee'
 
 defineProps<{
   employee: AuthUserEmployee | null
 }>()
 
+const getManagerDisplayName = (employee: AuthUserEmployee | null) => {
+  if (!employee?.manager) {
+    return 'No Manager Assigned'
+  }
+
+  return getEmployeeDisplayName(employee.manager, 'No Manager Assigned')
+}
+
 const infoItems = (employee: AuthUserEmployee | null) => [
   { label: 'Employee Code', value: employee?.employee_code || '--' },
-  { label: 'Full Name', value: employee?.full_name || [employee?.first_name, employee?.last_name].filter(Boolean).join(' ') || '--' },
+  { label: 'Full Name', value: getEmployeeDisplayName(employee) },
   { label: 'Department', value: employee?.department?.name || '--' },
   { label: 'Current Position', value: employee?.current_position?.title || '--' },
-  { label: 'Manager', value: employee?.manager?.full_name || '--' },
+  { label: 'Manager', value: getManagerDisplayName(employee) },
   { label: 'Hire Date', value: formatEmployeeDate(employee?.hire_date) },
   { label: 'Employment Type', value: formatEmployeeStatus(employee?.employment_type) },
 ]

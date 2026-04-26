@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ROLES, isOneOfRoles, type Role } from '@/constants/roles'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { formatTime12h } from '@/utils/time'
@@ -10,8 +9,8 @@ import type {
 } from '../interface/dashboard.interface'
 
 const props = defineProps<{
-  role: Role
   records: EmployeeDashboardRecord[] | WorkforceDashboardRecord[]
+  showEmployeeColumn?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -34,8 +33,6 @@ const statusClass = (status: string) => {
   if (status === 'late') return 'status-warning'
   return 'status-danger'
 }
-
-const hasEmployeeColumn = computed(() => !isOneOfRoles(props.role, [ROLES.EMPLOYEE]))
 
 const getEmployeeName = (record: EmployeeDashboardRecord | WorkforceDashboardRecord) => {
   if ('employee' in record) {
@@ -69,8 +66,8 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
         <thead>
           <tr>
             <th>Date</th>
-            <th v-if="hasEmployeeColumn">Employee</th>
-            <th v-if="hasEmployeeColumn">Department</th>
+            <th v-if="showEmployeeColumn">Employee</th>
+            <th v-if="showEmployeeColumn">Department</th>
             <th>Check In</th>
             <th>Check Out</th>
             <th>Status</th>
@@ -84,8 +81,8 @@ const getEmployeeDepartment = (record: EmployeeDashboardRecord | WorkforceDashbo
             @click="emit('rowClick', record)"
           >
             <td>{{ record.date }}</td>
-            <td v-if="hasEmployeeColumn">{{ getEmployeeName(record) }}</td>
-            <td v-if="hasEmployeeColumn">{{ getEmployeeDepartment(record) }}</td>
+            <td v-if="showEmployeeColumn">{{ getEmployeeName(record) }}</td>
+            <td v-if="showEmployeeColumn">{{ getEmployeeDepartment(record) }}</td>
             <td>{{ formatTime12h(record.checkInTime) }}</td>
             <td>{{ formatTime12h(record.checkOutTime) }}</td>
             <td>

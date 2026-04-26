@@ -17,6 +17,7 @@ import { useEmployees } from '../composable/useEmployees'
 import type { EmployeeListItem, EmployeeTerminatePayload } from '../interface/employee.interface'
 import {
   formatEmployeeDate,
+  getEmployeeDisplayName,
   getEmployeeRequestErrorMessage,
 } from '../utils/employee'
 
@@ -27,7 +28,9 @@ const {
   isDeleting,
   isSaving,
   isExporting,
-  isHrRole,
+  canExportEmployees,
+  canManageEmployeeProfiles,
+  canManageEmployees,
   isLoading,
   error,
   activateEmployee,
@@ -104,8 +107,10 @@ const managerOptions = computed<BaseDropdownOption[]>(() => {
   const uniqueManagers = new Map<number, string>()
 
   for (const employee of employees.value?.data ?? []) {
-    if (employee.manager?.id && employee.manager.name) {
-      uniqueManagers.set(employee.manager.id, employee.manager.name)
+    const managerName = getEmployeeDisplayName(employee.manager, '')
+
+    if (employee.manager?.id && managerName) {
+      uniqueManagers.set(employee.manager.id, managerName)
     }
   }
 
@@ -330,16 +335,18 @@ const getActionItems = (employee: EmployeeListItem): ActionMenuItem[] => {
     },
   ]
 
-  if (!isHrRole.value) {
+  if (!canManageEmployees.value) {
     return items
   }
 
-  items.push({
-    key: 'edit',
-    label: 'Edit',
-    icon: UserPen,
-    tone: 'warning',
-  })
+  if (canManageEmployeeProfiles.value) {
+    items.push({
+      key: 'edit',
+      label: 'Edit',
+      icon: UserPen,
+      tone: 'warning',
+    })
+  }
 
   if (employee.status === 'inactive') {
     items.push(
@@ -409,7 +416,7 @@ onMounted(async () => {
 
       <div class="employees-header-actions">
         <BaseButton
-          v-if="isHrRole"
+          v-if="canExportEmployees"
           :loading="isExporting"
           variant="ghost"
           @click="handleExport"
@@ -417,7 +424,7 @@ onMounted(async () => {
           <Download :size="16" />
           Export
         </BaseButton>
-        <BaseButton v-if="isHrRole" @click="goToCreate">
+        <BaseButton v-if="canManageEmployeeProfiles" @click="goToCreate">
           <Plus :size="16" />
           Add Employee
         </BaseButton>
@@ -430,6 +437,7 @@ onMounted(async () => {
           v-model="filters.search"
           label="Search"
           placeholder="Search by name, email, or employee code"
+          size="large"
         />
         <BaseDropdown
           v-model="filters.status"
@@ -512,7 +520,7 @@ onMounted(async () => {
             <ElTableColumn label="Name" min-width="240" prop="first_name" sortable="custom">
               <template #default="{ row }">
                 <div class="employees-name-cell">
-                  <EmployeeAvatar :name="row.full_name" :photo-url="row.profile_photo || row.profile_photo_path" size="sm" />
+                  <EmployeeAvatar :name="row.full_name" :photo-url="row.profile_photo || null" size="sm" />
                   <div>
                     <p class="employees-name">{{ row.full_name }}</p>
                     <p class="employees-name-sub">{{ row.position?.title || row.current_position?.title || '--' }}</p>

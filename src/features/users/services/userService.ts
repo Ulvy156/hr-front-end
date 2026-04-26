@@ -1,11 +1,15 @@
 import api from '@/lib/http'
 
 import type {
+  AvailableEmployeeUserListResponse,
   UserAccount,
   UserActionResponse,
+  UserAccessSummary,
+  UserAccessUpdatePayload,
   UserCreatePayload,
   UserListParams,
   UserListResponse,
+  UserPermission,
   UserResetPasswordPayload,
   UserRoleListResponse,
   UserUpdatePayload,
@@ -18,10 +22,22 @@ export const userService = {
     return data
   },
 
+  async getPermissions() {
+    const { data } = await api.get<UserPermission[]>('/permissions')
+
+    return data
+  },
+
   async getUsers(params?: UserListParams) {
     const { data } = await api.get<UserListResponse>('/users', {
       params,
     })
+
+    return data
+  },
+
+  async getAvailableEmployeeUsers() {
+    const { data } = await api.get<AvailableEmployeeUserListResponse>('/employees/available-users')
 
     return data
   },
@@ -38,6 +54,12 @@ export const userService = {
     return data
   },
 
+  async getUserAccess(userId: number) {
+    const { data } = await api.get<UserAccessSummary>(`/users/${userId}/access`)
+
+    return data
+  },
+
   async createUser(payload: UserCreatePayload) {
     const { data } = await api.post<UserAccount>('/users', payload)
 
@@ -46,6 +68,15 @@ export const userService = {
 
   async updateUser(userId: number, payload: UserUpdatePayload) {
     const { data } = await api.put<UserAccount>(`/users/${userId}`, payload)
+
+    return data
+  },
+
+  async updateUserAccess(userId: number, payload: UserAccessUpdatePayload) {
+    const { data } = await api.patch<UserAccessSummary>(
+      `/users/${userId}/access`,
+      payload,
+    )
 
     return data
   },

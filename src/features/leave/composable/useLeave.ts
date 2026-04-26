@@ -1,19 +1,20 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
-import { ROLES, getPrimaryRole, hasRole, type Role } from '@/constants/roles'
 import { useAuth } from '@/features/auth/composable/useAuth'
+import { usePermission } from '@/features/auth/composable/usePermission'
+import { PERMISSIONS } from '@/constants/permissions'
 
 import { useLeaveStore } from '../store/leaveStore'
 import {
   canCreateOwnLeaveRequest,
   canViewReviewQueue,
-  hasNamedRole,
 } from '../utils/leave'
 
 export const useLeave = () => {
   const leaveStore = useLeaveStore()
-  const { currentUser, employee } = useAuth()
+  const { canUseEmployeeSelfService, currentUser, employee } = useAuth()
+  const { hasAnyPermission, hasPermission } = usePermission()
   const {
     leaveTypes,
     leaveBalances,
@@ -43,24 +44,53 @@ export const useLeave = () => {
     detailError,
   } = storeToRefs(leaveStore)
 
-  const role = computed<Role | null>(() => getPrimaryRole(currentUser.value))
-  const isEmployeeRole = computed(() => hasRole(currentUser.value, ROLES.EMPLOYEE))
-  const isManagerRole = computed(() => hasNamedRole(currentUser.value, ROLES.MANAGER))
-  const isHrRole = computed(() => hasRole(currentUser.value, ROLES.HR))
-  const isAdminRole = computed(() => hasRole(currentUser.value, ROLES.ADMIN))
   const canCreateRequests = computed(() => canCreateOwnLeaveRequest(currentUser.value))
+  const canViewSelfLeaveBalances = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.LEAVE_BALANCE_VIEW_SELF),
+  )
+  const canViewSelfLeaveRequests = computed(() =>
+    canUseEmployeeSelfService.value &&
+    hasPermission(PERMISSIONS.LEAVE_REQUEST_VIEW_SELF),
+  )
   const canReviewRequests = computed(() => canViewReviewQueue(currentUser.value))
+  const canViewAssignedReviewQueue = computed(() =>
+    hasPermission(PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED),
+  )
+  const canViewAnyReviewQueue = computed(() =>
+    hasPermission(PERMISSIONS.LEAVE_REQUEST_VIEW_ANY),
+  )
+  const canManagerApproveRequests = computed(() =>
+    hasPermission(PERMISSIONS.LEAVE_APPROVE_MANAGER),
+  )
+  const canHrApproveRequests = computed(() =>
+    hasPermission(PERMISSIONS.LEAVE_APPROVE_HR),
+  )
+  const canViewLeaveWorkspace = computed(() =>
+    hasAnyPermission([
+      PERMISSIONS.LEAVE_APPROVE_MANAGER,
+      PERMISSIONS.LEAVE_APPROVE_HR,
+      PERMISSIONS.LEAVE_REQUEST_CREATE,
+      PERMISSIONS.LEAVE_REQUEST_VIEW_SELF,
+      PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED,
+      PERMISSIONS.LEAVE_REQUEST_VIEW_ANY,
+      PERMISSIONS.LEAVE_BALANCE_VIEW_SELF,
+    ]),
+  )
 
   return {
     currentUser,
     employee,
-    role,
-    isEmployeeRole,
-    isManagerRole,
-    isHrRole,
-    isAdminRole,
+    canUseEmployeeSelfService,
     canCreateRequests,
+    canViewSelfLeaveBalances,
+    canViewSelfLeaveRequests,
     canReviewRequests,
+    canViewAssignedReviewQueue,
+    canViewAnyReviewQueue,
+    canManagerApproveRequests,
+    canHrApproveRequests,
+    canViewLeaveWorkspace,
     leaveTypes,
     leaveBalances,
     publicHolidays,

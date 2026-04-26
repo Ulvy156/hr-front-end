@@ -11,6 +11,9 @@ defineProps<{
   nextAction: string | null
   correctionStatus: string | null
   canCorrectionAction?: boolean
+  canMissingAttendanceAction?: boolean
+  canPrimaryAction?: boolean
+  canScanAction?: boolean
   actionLoading?: boolean
   requestLoading?: boolean
   actionError?: string
@@ -37,6 +40,7 @@ defineEmits<{
 
       <div class="employee-actions-buttons">
         <BaseButton
+          v-if="canPrimaryAction"
           :disabled="!isSelfServiceAttendanceAction(nextAction)"
           :loading="actionLoading"
           :variant="nextAction === 'check_in' || nextAction === 'check_out' ? 'primary' : 'secondary'"
@@ -44,10 +48,11 @@ defineEmits<{
         >
           {{ formatAttendanceActionLabel(nextAction) }}
         </BaseButton>
-        <BaseButton variant="ghost" @click="$emit('scanAction')">
+        <BaseButton v-if="canScanAction" variant="ghost" @click="$emit('scanAction')">
           Open QR Scan Flow
         </BaseButton>
         <BaseButton
+          v-if="canCorrectionAction"
           :disabled="!canCorrectionAction"
           :loading="requestLoading"
           variant="secondary"
@@ -55,7 +60,12 @@ defineEmits<{
         >
           Correction Request
         </BaseButton>
-        <BaseButton :loading="requestLoading" variant="ghost" @click="$emit('missingAttendanceAction')">
+        <BaseButton
+          v-if="canMissingAttendanceAction"
+          :loading="requestLoading"
+          variant="ghost"
+          @click="$emit('missingAttendanceAction')"
+        >
           Missing Attendance Request
         </BaseButton>
       </div>

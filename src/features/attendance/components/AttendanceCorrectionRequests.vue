@@ -12,8 +12,10 @@ import AttendanceStatusBadge from './AttendanceStatusBadge.vue'
 const props = withDefaults(defineProps<{
   requests: CorrectionRequestListResponse | null
   embedded?: boolean
+  canReview?: boolean
 }>(), {
   embedded: false,
+  canReview: false,
 })
 
 const emit = defineEmits<{
@@ -100,7 +102,11 @@ function formatDateTime(value: string | null | undefined, timeOnly = false) {
         </template>
 
         <template #cell-actions="{ row }">
-          <BaseButton variant="ghost" @click="emit('reviewClick', row.raw as CorrectionRequest)">
+          <BaseButton
+            :disabled="!canReview"
+            variant="ghost"
+            @click="emit('reviewClick', row.raw as CorrectionRequest)"
+          >
             Review
           </BaseButton>
         </template>

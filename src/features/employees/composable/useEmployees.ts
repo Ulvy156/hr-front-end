@@ -1,14 +1,16 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
-import { ROLES, getPrimaryRole, hasRole, type Role } from '@/constants/roles'
 import { useAuth } from '@/features/auth/composable/useAuth'
+import { usePermission } from '@/features/auth/composable/usePermission'
+import { PERMISSIONS } from '@/constants/permissions'
 
 import { useEmployeeStore } from '../store/employeeStore'
 
 export const useEmployees = () => {
   const employeeStore = useEmployeeStore()
   const { currentUser } = useAuth()
+  const { hasAllPermissions, hasPermission } = usePermission()
   const {
     employees,
     selectedEmployee,
@@ -25,18 +27,22 @@ export const useEmployees = () => {
     detailError,
   } = storeToRefs(employeeStore)
 
-  const role = computed<Role | null>(() => {
-    return getPrimaryRole(currentUser.value)
-  })
-
-  const isHrRole = computed(() => hasRole(currentUser.value, ROLES.HR))
-  const isAdminRole = computed(() => hasRole(currentUser.value, ROLES.ADMIN))
+  const canManageEmployees = computed(() => hasPermission(PERMISSIONS.EMPLOYEE_MANAGE))
+  const canManageEmployeeProfiles = computed(() =>
+    hasAllPermissions([
+      PERMISSIONS.EMPLOYEE_MANAGE,
+      PERMISSIONS.EMPLOYEE_USER_LINK_VIEW,
+      PERMISSIONS.POSITION_VIEW,
+      PERMISSIONS.LOCATION_VIEW,
+    ]),
+  )
+  const canExportEmployees = computed(() => hasPermission(PERMISSIONS.EMPLOYEE_EXPORT))
 
   return {
     currentUser,
-    role,
-    isHrRole,
-    isAdminRole,
+    canManageEmployees,
+    canManageEmployeeProfiles,
+    canExportEmployees,
     employees,
     selectedEmployee,
     positions,

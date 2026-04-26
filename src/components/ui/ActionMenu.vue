@@ -65,16 +65,6 @@ const triggerLabel = computed(() => props.tooltip || props.ariaLabel || 'Open ac
       </ElDropdownMenu>
     </template>
   </ElDropdown>
-
-  <button
-    v-else
-    :aria-label="ariaLabel || 'No actions available'"
-    class="action-menu-trigger action-menu-trigger-disabled"
-    disabled
-    type="button"
-  >
-    <MoreVertical :size="16" />
-  </button>
 </template>
 
 <style scoped>
@@ -113,21 +103,6 @@ const triggerLabel = computed(() => props.tooltip || props.ariaLabel || 'Open ac
   box-shadow:
     0 0 0 3px hsl(var(--ring) / 0.18),
     0 4px 14px hsl(var(--foreground) / 0.08);
-}
-
-.action-menu-trigger-disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  transform: none;
-  box-shadow: none;
-}
-
-.action-menu-trigger-disabled:hover,
-.action-menu-trigger-disabled:active {
-  background: hsl(var(--card));
-  border-color: hsl(var(--border-gray));
-  transform: none;
-  box-shadow: none;
 }
 
 :global(.el-dropdown-menu__item.action-menu-item) {

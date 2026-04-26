@@ -242,6 +242,7 @@ function disableFutureDate(date: Date) {
             :model-value="search"
             label="Search"
             placeholder="Search by employee name or code"
+            size="large"
             @update:model-value="emit('update:search', $event)"
           />
           <BaseDropdown

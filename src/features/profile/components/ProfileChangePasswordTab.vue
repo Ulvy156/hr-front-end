@@ -86,6 +86,7 @@ const submit = async () => {
           label="Current Password"
           placeholder="Enter your current password"
           required
+          size="large"
           type="password"
         />
         <div />
@@ -95,6 +96,7 @@ const submit = async () => {
           label="New Password"
           placeholder="Enter your new password"
           required
+          size="large"
           type="password"
         />
         <BaseInput
@@ -103,6 +105,7 @@ const submit = async () => {
           label="Confirm Password"
           placeholder="Re-enter your new password"
           required
+          size="large"
           type="password"
         />
       </div>

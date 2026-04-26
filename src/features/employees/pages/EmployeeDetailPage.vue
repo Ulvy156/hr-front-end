@@ -13,6 +13,7 @@ import {
   EMPLOYEE_SHOW_INCLUDES,
   formatEmployeeDate,
   formatEmployeeStatus,
+  getEmployeeDisplayName,
   getEmployeeRequestErrorMessage,
 } from '../utils/employee'
 
@@ -24,7 +25,8 @@ const deleteOpen = ref(false)
 
 const {
   selectedEmployee,
-  isHrRole,
+  canManageEmployeeProfiles,
+  canManageEmployees,
   isDeleting,
   isDetailLoading,
   isPhotoUploading,
@@ -122,7 +124,7 @@ onBeforeUnmount(() => {
       <div class="employee-detail-profile">
         <EmployeeAvatar
           :name="selectedEmployee.full_name"
-          :photo-url="selectedEmployee.profile_photo || selectedEmployee.profile_photo_path"
+          :photo-url="selectedEmployee.profile_photo || null"
           size="lg"
         />
 
@@ -144,15 +146,15 @@ onBeforeUnmount(() => {
           <ArrowLeft :size="16" />
           Back
         </BaseButton>
-        <BaseButton v-if="isHrRole" :loading="isPhotoUploading" variant="ghost" @click="triggerPhotoUpload">
+        <BaseButton v-if="canManageEmployees" :loading="isPhotoUploading" variant="ghost" @click="triggerPhotoUpload">
           <Upload :size="16" />
           Upload Photo
         </BaseButton>
-        <BaseButton v-if="isHrRole" variant="ghost" @click="goToEdit">
+        <BaseButton v-if="canManageEmployeeProfiles" variant="ghost" @click="goToEdit">
           <Pencil :size="16" />
           Edit
         </BaseButton>
-        <BaseButton v-if="isHrRole" variant="danger" @click="openDelete">
+        <BaseButton v-if="canManageEmployees" variant="danger" @click="openDelete">
           <Trash2 :size="16" />
           Deactivate
         </BaseButton>
@@ -332,7 +334,7 @@ onBeforeUnmount(() => {
                       </div>
                       <div class="employee-detail-field">
                         <span class="employee-detail-label">Manager</span>
-                        <span class="employee-detail-value">{{ selectedEmployee.manager?.name || '--' }}</span>
+                        <span class="employee-detail-value">{{ getEmployeeDisplayName(selectedEmployee.manager) }}</span>
                       </div>
                     </div>
                   </div>

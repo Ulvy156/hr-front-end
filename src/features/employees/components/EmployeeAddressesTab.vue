@@ -507,6 +507,7 @@ onMounted(async () => {
                 v-model="row.address_line"
                 label="Address Line"
                 placeholder="Apartment, building, or area details"
+                size="large"
               />
               <BaseDropdown
                 v-model="row.province_id"
@@ -550,9 +551,9 @@ onMounted(async () => {
                 placeholder="Select village"
                 required
               />
-              <BaseInput v-model="row.street" label="Street" placeholder="Street name or number" />
-              <BaseInput v-model="row.house_no" label="House No" placeholder="House or unit number" />
-              <BaseInput v-model="row.postal_code" label="Postal Code" placeholder="Postal code" />
+              <BaseInput v-model="row.street" label="Street" placeholder="Street name or number" size="large" />
+              <BaseInput v-model="row.house_no" label="House No" placeholder="House or unit number" size="large" />
+              <BaseInput v-model="row.postal_code" label="Postal Code" placeholder="Postal code" size="large" />
             </div>
 
             <BaseTextarea

@@ -3,6 +3,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 
 import type { UserAccount } from '../interface/user.interface'
+import { getUserDisplayName } from '../utils/user'
 
 defineProps<{
   open: boolean
@@ -27,7 +28,7 @@ const emit = defineEmits<{
     <div class="space-y-5">
       <div class="space-y-2">
         <p class="text-sm text-slate-600">
-          Delete <span class="font-semibold text-slate-900">{{ user?.name || 'this user' }}</span> permanently.
+          Delete <span class="font-semibold text-slate-900">{{ getUserDisplayName(user, 'this user') }}</span> permanently.
         </p>
         <p class="text-sm text-slate-500">
           This action uses the admin delete endpoint and cannot be undone.

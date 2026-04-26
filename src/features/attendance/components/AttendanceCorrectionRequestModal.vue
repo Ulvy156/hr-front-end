@@ -168,7 +168,7 @@ watch(
 
       <div class="flex justify-end gap-3">
         <BaseButton variant="ghost" @click="handleClose">Cancel</BaseButton>
-        <BaseButton :loading="submitting" @click="handleSubmit">Submit Request</BaseButton>
+        <BaseButton :loading="submitting" @click="handleSubmit">Send Request</BaseButton>
       </div>
     </div>
   </BaseModal>

@@ -18,6 +18,7 @@ const props = withDefaults(
     required?: boolean
     autocomplete?: string
     autofocus?: boolean
+    size?: 'large' | 'default' | 'small'
   }>(),
   {
     id: undefined,
@@ -30,6 +31,7 @@ const props = withDefaults(
     required: false,
     autocomplete: undefined,
     autofocus: false,
+    size: 'default',
   },
 )
 
@@ -68,6 +70,7 @@ onMounted(() => {
         :name="name"
         :placeholder="placeholder"
         :required="required"
+        :size="size"
         :type="type"
         :validate-event="false"
       >
@@ -93,13 +96,7 @@ onMounted(() => {
   position: relative;
 }
 
-.base-input-control {
-  width: 100%;
-}
-
 .base-input-control:deep(.el-input__wrapper) {
-  /* min-height: 3rem; */
-  padding: 0.85rem 1rem;
   border-radius: var(--radius);
   background: hsl(var(--card));
   box-shadow: 0 0 0 1px hsl(var(--border-gray)) inset;
@@ -134,10 +131,6 @@ onMounted(() => {
 
 .base-input-control:deep(.el-input__suffix) {
   color: hsl(var(--muted-foreground));
-}
-
-.has-suffix:deep(.el-input__wrapper) {
-  padding-right: 0.75rem;
 }
 
 .has-error:deep(.el-input__wrapper) {

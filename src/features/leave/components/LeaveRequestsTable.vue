@@ -90,10 +90,14 @@ const getDurationSummary = (request: LeaveRequest) => {
 <template>
   <BaseCard class="leave-table-card">
     <div class="leave-table-header">
-      <div>
-        <h3 class="leave-table-title">{{ title }}</h3>
-        <p class="leave-table-text">{{ description }}</p>
+      <div class="leave-table-header-copy">
+        <div class="leave-table-heading">
+          <h3 class="leave-table-title">{{ title }}</h3>
+          <p class="leave-table-text">{{ description }}</p>
+        </div>
       </div>
+
+      <p v-if="requests?.total" class="leave-table-total-pill">{{ requests.total }} requests</p>
     </div>
 
     <div class="leave-table-scroll">
@@ -169,9 +173,11 @@ const getDurationSummary = (request: LeaveRequest) => {
     </div>
 
     <div v-if="(requests?.last_page ?? 1) > 1" class="leave-table-pagination">
-      <p class="leave-table-text">
-        Showing {{ requests?.from ?? 0 }}-{{ requests?.to ?? 0 }} of {{ requests?.total ?? 0 }}
-      </p>
+      <div class="leave-table-pagination-copy">
+        <p class="leave-table-text">
+          Showing {{ requests?.from ?? 0 }}-{{ requests?.to ?? 0 }} of {{ requests?.total ?? 0 }}
+        </p>
+      </div>
 
       <ElPagination
         :current-page="requests?.current_page ?? 1"
@@ -190,10 +196,46 @@ const getDurationSummary = (request: LeaveRequest) => {
 <style scoped>
 .leave-table-card {
   overflow: hidden;
+  border-color: hsl(var(--border-gray));
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.08) 100%);
 }
 
 .leave-table-header {
-  padding: 1.25rem 1.25rem 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 1.25rem 0;
+}
+
+.leave-table-header-copy,
+.leave-table-heading,
+.leave-table-pagination-copy,
+.leave-table-employee,
+.leave-table-request,
+.leave-table-secondary-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.leave-table-header-copy,
+.leave-table-heading,
+.leave-table-pagination-copy {
+  gap: 0.25rem;
+}
+
+.leave-table-total-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.78rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: 999px;
+  background: hsl(var(--secondary) / 0.24);
+  color: hsl(var(--foreground));
+  font-size: var(--text-xs);
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .leave-table-title,
@@ -201,13 +243,19 @@ const getDurationSummary = (request: LeaveRequest) => {
   color: hsl(var(--foreground));
 }
 
+.leave-table-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
 .leave-table-text {
   color: hsl(var(--muted-foreground));
+  line-height: 1.45;
 }
 
 .leave-table-scroll {
   overflow-x: auto;
-  padding: 1rem 1.25rem 0;
+  padding: 0.95rem 1.25rem 0;
 }
 
 .leave-table {
@@ -221,8 +269,6 @@ const getDurationSummary = (request: LeaveRequest) => {
 
 .leave-table-employee,
 .leave-table-request {
-  display: flex;
-  flex-direction: column;
   gap: 0.35rem;
 }
 
@@ -231,8 +277,6 @@ const getDurationSummary = (request: LeaveRequest) => {
 }
 
 .leave-table-secondary-block {
-  display: flex;
-  flex-direction: column;
   gap: 0.2rem;
 }
 
@@ -258,7 +302,7 @@ const getDurationSummary = (request: LeaveRequest) => {
 }
 
 .leave-table-empty-state {
-  padding: 1.25rem;
+  padding: 1.15rem 1.25rem 1.25rem;
   text-align: center;
 }
 
@@ -267,7 +311,11 @@ const getDurationSummary = (request: LeaveRequest) => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem 1.25rem;
+  margin: 1rem 1.25rem 1.25rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: calc(var(--radius) - 0.15rem);
+  background: hsl(var(--secondary) / 0.18);
 }
 
 .leave-table-card :deep(.el-table) {
@@ -283,7 +331,7 @@ const getDurationSummary = (request: LeaveRequest) => {
 }
 
 .leave-table-card :deep(.el-table__header-wrapper th.el-table__cell) {
-  padding-block: 0.8rem;
+  padding-block: 0.72rem;
   background: transparent;
   color: hsl(var(--muted-foreground));
   font-size: var(--text-xs);
@@ -293,7 +341,7 @@ const getDurationSummary = (request: LeaveRequest) => {
 }
 
 .leave-table-card :deep(.el-table__body td.el-table__cell) {
-  padding-block: 0.95rem;
+  padding-block: 0.82rem;
   background: transparent;
 }
 
@@ -320,6 +368,12 @@ const getDurationSummary = (request: LeaveRequest) => {
 }
 
 @media (max-width: 640px) {
+  .leave-table-header,
+  .leave-table-pagination {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .leave-table-scroll {
     padding-top: 0.75rem;
   }

@@ -8,6 +8,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { employeeService } from '../services/employeeService'
 import type { EmployeeDetail, EmployeeListItem, EmployeeUpsertPayload } from '../interface/employee.interface'
 import {
+  getEmployeeDisplayName,
   getEmployeeRequestErrorMessage,
   getEmployeeSuccessMessage,
 } from '../utils/employee'
@@ -167,13 +168,17 @@ const managerOptions = computed<BaseDropdownOption[]>(() => {
   const uniqueManagers = new Map<number, string>()
 
   for (const employee of directoryEmployees.value) {
-    if (employee.manager?.id && employee.manager.name) {
-      uniqueManagers.set(employee.manager.id, employee.manager.name)
+    const managerName = getEmployeeDisplayName(employee.manager, '')
+
+    if (employee.manager?.id && managerName) {
+      uniqueManagers.set(employee.manager.id, managerName)
     }
   }
 
-  if (employeeRecord.value?.manager?.id && employeeRecord.value.manager.name) {
-    uniqueManagers.set(employeeRecord.value.manager.id, employeeRecord.value.manager.name)
+  const currentManagerName = getEmployeeDisplayName(employeeRecord.value?.manager, '')
+
+  if (employeeRecord.value?.manager?.id && currentManagerName) {
+    uniqueManagers.set(employeeRecord.value.manager.id, currentManagerName)
   }
 
   return Array.from(uniqueManagers.entries())
@@ -398,25 +403,25 @@ watch(
 
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div class="lg:col-span-1">
-                <BaseInput v-model="form.user_id" label="User ID" placeholder="Linked user ID" type="number" />
+                <BaseInput v-model="form.user_id" label="User ID" placeholder="Linked user ID" size="large" type="number" />
               </div>
               <div class="lg:col-span-1">
-                <BaseInput v-model="form.employee_code" label="Employee Code" placeholder="Optional employee code" />
+                <BaseInput v-model="form.employee_code" label="Employee Code" placeholder="Optional employee code" size="large" />
               </div>
               <div class="lg:col-span-1">
                 <BaseDatePicker v-model="form.hire_date" label="Hire Date" required value-format="YYYY-MM-DD" />
               </div>
               <div class="lg:col-span-1">
-                <BaseInput v-model="form.first_name" label="First Name" placeholder="First name" required />
+                <BaseInput v-model="form.first_name" label="First Name" placeholder="First name" required size="large" />
               </div>
               <div class="lg:col-span-1">
-                <BaseInput v-model="form.last_name" label="Last Name" placeholder="Last name" required />
+                <BaseInput v-model="form.last_name" label="Last Name" placeholder="Last name" required size="large" />
               </div>
               <div class="lg:col-span-1">
-                <BaseInput v-model="form.phone" label="Phone" placeholder="Primary work phone" required />
+                <BaseInput v-model="form.phone" label="Phone" placeholder="Primary work phone" required size="large" />
               </div>
               <div class="lg:col-span-2">
-                <BaseInput v-model="form.email" label="Email" placeholder="name@example.com" required type="email" />
+                <BaseInput v-model="form.email" label="Email" placeholder="name@example.com" required size="large" type="email" />
               </div>
               <div class="lg:col-span-1">
                 <BaseDatePicker
@@ -522,16 +527,17 @@ watch(
                 />
               </div>
               <div class="w-full min-w-0 lg:col-span-1">
-                <BaseInput v-model="form.personal_phone" label="Personal Phone" placeholder="Personal contact number" />
+                <BaseInput v-model="form.personal_phone" label="Personal Phone" placeholder="Personal contact number" size="large" />
               </div>
               <div class="w-full min-w-0 lg:col-span-1">
-                <BaseInput v-model="form.id_number" label="ID Number" placeholder="Official ID number" />
+                <BaseInput v-model="form.id_number" label="ID Number" placeholder="Official ID number" size="large" />
               </div>
               <div class="w-full min-w-0 lg:col-span-1">
                 <BaseInput
                   v-model="form.personal_email"
                   label="Personal Email"
                   placeholder="personal@example.com"
+                  size="large"
                   type="email"
                 />
               </div>

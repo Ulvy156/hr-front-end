@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CalendarRange, Clock3 } from 'lucide-vue-next'
+
 import BaseCard from '@/components/ui/BaseCard.vue'
 
 import type { LeaveCurrentBalance, LeaveRequestBalance } from '../interface/leave.interface'
@@ -101,6 +103,18 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
 
   return `${formatDaysLabel(balance.used_days)} used / ${formatDaysLabel(balance.entitlement_days)} total`
 }
+
+const getBalanceMeta = (balance: LeaveBalanceSummaryItem) => {
+  if (isCurrentBalance(balance)) {
+    return `Policy year ${balance.year}`
+  }
+
+  return `Snapshot year ${balance.year}`
+}
+
+const getBalanceIcon = (balance: LeaveBalanceSummaryItem) => {
+  return isCurrentBalance(balance) ? CalendarRange : Clock3
+}
 </script>
 
 <template>
@@ -123,14 +137,29 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
             isCurrentBalance(balance) ? 'leave-balance-item-current' : 'leave-balance-item-snapshot',
           ]"
         >
-          <p class="leave-balance-item-title">{{ getBalanceTitle(balance) }}</p>
-          <div class="leave-balance-highlight">
-            <strong class="leave-balance-primary-value">{{ getPrimaryValue(balance) }}</strong>
-            <p class="leave-balance-primary-caption">{{ getPrimaryCaption(balance) }}</p>
+          <div class="leave-balance-item-top">
+            <span class="leave-balance-icon-shell">
+              <component :is="getBalanceIcon(balance)" :size="16" />
+            </span>
+
+            <div class="leave-balance-item-heading">
+              <p class="leave-balance-item-title">{{ getBalanceTitle(balance) }}</p>
+              <p v-if="!isCurrentBalance(balance)" class="leave-balance-item-meta">{{ getBalanceMeta(balance) }}</p>
+            </div>
           </div>
-          <p class="leave-balance-secondary">
-            {{ getSecondaryValue(balance) }}
-          </p>
+
+          <div class="leave-balance-highlight">
+            <div class="leave-balance-highlight-main">
+              <strong class="leave-balance-primary-value">{{ getPrimaryValue(balance) }}</strong>
+              <p class="leave-balance-primary-caption">{{ getPrimaryCaption(balance) }}</p>
+            </div>
+
+            <div class="leave-balance-secondary-shell">
+              <p class="leave-balance-secondary">
+                {{ getSecondaryValue(balance) }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -177,14 +206,19 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
 .leave-balance-header-copy {
   flex: 1;
   flex-direction: column;
+  gap: 0.22rem;
   min-width: 0;
 }
 
 .leave-balance-title {
   color: hsl(var(--foreground));
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .leave-balance-text,
+.leave-balance-item-meta,
 .leave-balance-primary-caption,
 .leave-balance-secondary,
 .leave-balance-empty {
@@ -211,15 +245,24 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
 .leave-balance-item {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 1rem;
   border: 1px solid hsl(var(--border-gray));
   border-radius: var(--radius);
-  background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.14) 100%);
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--secondary) / 0.18) 100%);
+  box-shadow: var(--shadow-card);
   padding: 1rem 1rem 1.05rem;
+  position: relative;
+  overflow: hidden;
 }
 
-.leave-balance-item-current {
-  gap: 0.75rem;
+.leave-balance-item::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.2) 100%);
 }
 
 .leave-balance-item-title,
@@ -227,16 +270,54 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
   color: hsl(var(--foreground));
 }
 
+.leave-balance-item-top,
+.leave-balance-item-heading,
+.leave-balance-highlight,
+.leave-balance-highlight-main,
+.leave-balance-secondary-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.leave-balance-item-top {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.leave-balance-icon-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+.leave-balance-item-heading {
+  gap: 0.18rem;
+  min-width: 0;
+}
+
 .leave-balance-item-title {
-  min-height: 2.5rem;
+  min-height: 2.2rem;
   font-weight: 700;
   line-height: 1.35;
 }
 
+.leave-balance-item-meta {
+  font-size: var(--text-xs);
+}
+
 .leave-balance-highlight {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.85rem;
+}
+
+.leave-balance-highlight-main {
+  gap: 0.24rem;
 }
 
 .leave-balance-primary-value {
@@ -247,6 +328,14 @@ const getSecondaryValue = (balance: LeaveBalanceSummaryItem) => {
 
 .leave-balance-primary-caption {
   font-size: var(--text-sm);
+}
+
+.leave-balance-secondary-shell {
+  gap: 0.18rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid hsl(var(--border-gray));
+  border-radius: calc(var(--radius) - 0.2rem);
+  background: hsl(var(--card) / 0.8);
 }
 
 .leave-balance-secondary {

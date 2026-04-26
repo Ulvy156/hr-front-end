@@ -22,9 +22,7 @@ export const authService = {
   },
 
   async getProfile() {
-    const { data } = await api.get<AuthUser>('/auth/profile')
-
-    return data
+    return this.getMe()
   },
 
   async getMe() {

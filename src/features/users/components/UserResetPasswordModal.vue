@@ -4,6 +4,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 
 import type { UserAccount, UserResetPasswordPayload } from '../interface/user.interface'
+import { getUserDisplayName } from '../utils/user'
 
 const props = withDefaults(
   defineProps<{
@@ -79,7 +80,7 @@ watch(
   >
     <div class="space-y-5">
       <p class="text-sm text-slate-500">
-        Set a new password for <span class="font-semibold text-slate-900">{{ user?.name || 'this user' }}</span>.
+        Set a new password for <span class="font-semibold text-slate-900">{{ getUserDisplayName(user, 'this user') }}</span>.
       </p>
 
       <div class="space-y-4">
@@ -88,6 +89,7 @@ watch(
           label="New Password"
           placeholder="Enter new password"
           required
+          size="large"
           type="password"
         />
         <BaseInput
@@ -95,6 +97,7 @@ watch(
           label="Confirm New Password"
           placeholder="Confirm new password"
           required
+          size="large"
           type="password"
         />
       </div>

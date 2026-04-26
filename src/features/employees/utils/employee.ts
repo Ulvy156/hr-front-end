@@ -62,6 +62,36 @@ export const formatEmployeeDate = (value: string | null | undefined) => {
   return parsed.toLocaleDateString()
 }
 
+type EmployeeIdentityLike = {
+  full_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  name?: string | null
+}
+
+export const getEmployeeDisplayName = (
+  employee: EmployeeIdentityLike | null | undefined,
+  fallback = '--',
+) => {
+  const fullName = employee?.full_name?.trim()
+
+  if (fullName) {
+    return fullName
+  }
+
+  const splitName = [employee?.first_name, employee?.last_name]
+    .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
+    .join(' ')
+
+  if (splitName) {
+    return splitName
+  }
+
+  const name = employee?.name?.trim()
+
+  return name || fallback
+}
+
 type EmployeeRequestErrorPayload = {
   message?: string
   errors?: Record<string, string[]>

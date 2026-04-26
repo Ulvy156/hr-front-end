@@ -1,7 +1,12 @@
 import axios from 'axios'
 
-import { ROLES } from '@/constants/roles'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { AuthUser } from '@/features/auth/interface/auth.interface'
+import {
+  hasUserAnyPermission,
+  hasUserPermission,
+} from '@/features/auth/utils/permissions'
+import { canUseEmployeeSelfService } from '@/features/auth/utils/userContext'
 
 import type {
   LeaveDuration,
@@ -160,80 +165,24 @@ export const getLeaveStatusVariant = (status: LeaveRequestStatus | string | null
   return 'default'
 }
 
-const extractPermissionName = (permission: unknown) => {
-  if (typeof permission === 'string') {
-    return permission
-  }
-
-  if (permission && typeof permission === 'object' && 'name' in permission) {
-    const name = permission.name
-
-    return typeof name === 'string' ? name : ''
-  }
-
-  return ''
-}
-
-export const getAuthUserPermissionNames = (user: AuthUser | null | undefined) => {
-  const permissionNames = new Set<string>()
-  const rawUser = user as AuthUser & {
-    permission_names?: string[] | null
-    permissions?: unknown[] | null
-    roles?: Array<AuthUser['roles'][number] & { permissions?: unknown[] | null }> | null
-  }
-
-  for (const permissionName of rawUser.permission_names ?? []) {
-    if (typeof permissionName === 'string' && permissionName.trim()) {
-      permissionNames.add(permissionName)
-    }
-  }
-
-  for (const permission of rawUser.permissions ?? []) {
-    const permissionName = extractPermissionName(permission)
-
-    if (permissionName) {
-      permissionNames.add(permissionName)
-    }
-  }
-
-  for (const role of rawUser.roles ?? []) {
-    for (const permission of role.permissions ?? []) {
-      const permissionName = extractPermissionName(permission)
-
-      if (permissionName) {
-        permissionNames.add(permissionName)
-      }
-    }
-  }
-
-  return Array.from(permissionNames)
-}
-
-export const hasAuthPermission = (
-  user: AuthUser | null | undefined,
-  permissionName: string,
-) => {
-  return getAuthUserPermissionNames(user).includes(permissionName)
-}
-
 export const getAuthEmployeeId = (user: AuthUser | null | undefined) => {
   return user?.employee?.id ?? null
 }
 
-export const hasNamedRole = (user: AuthUser | null | undefined, roleName: string) => {
-  return Boolean(user?.roles?.some((role) => role.name === roleName))
-}
-
 export const canCreateOwnLeaveRequest = (user: AuthUser | null | undefined) => {
-  return Boolean(user?.employee)
+  return (
+    canUseEmployeeSelfService(user) &&
+    hasUserPermission(user, PERMISSIONS.LEAVE_REQUEST_CREATE)
+  )
 }
 
 export const canViewReviewQueue = (user: AuthUser | null | undefined) => {
-  return (
-    Boolean(getAuthEmployeeId(user)) ||
-    hasAuthPermission(user, 'leave.approve.hr') ||
-    hasNamedRole(user, ROLES.ADMIN)
-  )
+  return hasUserAnyPermission(user, [
+    PERMISSIONS.LEAVE_APPROVE_MANAGER,
+    PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED,
+    PERMISSIONS.LEAVE_REQUEST_VIEW_ANY,
+    PERMISSIONS.LEAVE_APPROVE_HR,
+  ])
 }
 
 export const canCancelLeaveRequest = (
@@ -265,7 +214,11 @@ export const canApproveManagerStep = (
   const reviewerEmployeeId = getAuthEmployeeId(currentUser)
   const approverEmployeeId = resolveManagerStepApproverEmployeeId(request)
 
-  if (!reviewerEmployeeId || !approverEmployeeId) {
+  if (
+    !hasUserPermission(currentUser, PERMISSIONS.LEAVE_APPROVE_MANAGER) ||
+    !reviewerEmployeeId ||
+    !approverEmployeeId
+  ) {
     return false
   }
 
@@ -284,7 +237,7 @@ export const canApproveHRStep = (
   const reviewerEmployeeId = getAuthEmployeeId(currentUser)
 
   if (
-    !hasAuthPermission(currentUser, 'leave.approve.hr') ||
+    !hasUserPermission(currentUser, PERMISSIONS.LEAVE_APPROVE_HR) ||
     !reviewerEmployeeId ||
     request.employee_id === reviewerEmployeeId
   ) {
@@ -333,11 +286,17 @@ export const getLeaveRequestErrorMessage = (error: unknown, fallback = 'Somethin
 }
 
 export const getLeaveReviewDefaultStatus = (user: AuthUser | null | undefined) => {
-  if (hasAuthPermission(user, 'leave.approve.hr')) {
+  if (hasUserPermission(user, PERMISSIONS.LEAVE_APPROVE_HR)) {
     return LEAVE_REQUEST_STATUS.MANAGER_APPROVED
   }
 
-  if (getAuthEmployeeId(user)) {
+  if (
+    hasUserAnyPermission(user, [
+      PERMISSIONS.LEAVE_APPROVE_MANAGER,
+      PERMISSIONS.LEAVE_REQUEST_VIEW_ASSIGNED,
+      PERMISSIONS.LEAVE_REQUEST_VIEW_ANY,
+    ])
+  ) {
     return LEAVE_REQUEST_STATUS.PENDING
   }
 

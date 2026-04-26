@@ -103,7 +103,7 @@ watch(
           <div class="flex min-w-0 items-center gap-4">
             <EmployeeAvatar
               :name="employee.full_name"
-              :photo-url="employee.profile_photo || employee.profile_photo_path"
+              :photo-url="employee.profile_photo || null"
               size="lg"
             />
 

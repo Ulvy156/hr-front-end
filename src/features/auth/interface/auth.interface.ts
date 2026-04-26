@@ -3,6 +3,7 @@ import type {
   EmployeeBranch,
   EmployeeDepartment,
   EmployeeEmergencyContact,
+  EmployeeManager,
   EmployeePosition,
   EmployeePositionHistoryItem,
   EmployeeShift,
@@ -40,7 +41,7 @@ export interface AuthUserEmployee {
   department?: EmployeeDepartment | null
   branch?: EmployeeBranch | null
   current_position?: EmployeePosition | null
-  manager?: { id: number; name: string, full_name: string } | null
+  manager?: EmployeeManager | null
   shift?: EmployeeShift | null
   addresses?: EmployeeAddress[]
   emergency_contacts?: EmployeeEmergencyContact[]
