@@ -2,15 +2,18 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
 import { useAuth } from '@/features/auth/composable/useAuth'
-import { usePermission } from '@/features/auth/composable/usePermission'
 import { PERMISSIONS } from '@/constants/permissions'
+import {
+  hasUserAnyPermission,
+  hasUserEmployeePermission,
+  hasUserPermission,
+} from '@/features/auth/utils/permissions'
 
 import { useAttendanceStore } from '../store/attendanceStore'
 
 export const useAttendance = () => {
   const attendanceStore = useAttendanceStore()
   const { canUseEmployeeSelfService, currentUser } = useAuth()
-  const { hasAnyPermission, hasPermission } = usePermission()
   const {
     auditLogs,
     auditLogsError,
@@ -33,42 +36,37 @@ export const useAttendance = () => {
   } = storeToRefs(attendanceStore)
 
   const canUseSelfAttendanceActions = computed(() =>
-    canUseEmployeeSelfService.value &&
-    hasPermission(PERMISSIONS.ATTENDANCE_RECORD),
+    hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_RECORD),
   )
   const canViewSelfAttendanceHistory = computed(() =>
-    canUseEmployeeSelfService.value &&
-    hasPermission(PERMISSIONS.ATTENDANCE_VIEW_SELF),
+    hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_VIEW_SELF),
   )
   const canViewSelfAttendanceSummary = computed(() =>
-    canUseEmployeeSelfService.value &&
-    hasPermission(PERMISSIONS.ATTENDANCE_SUMMARY_SELF),
+    hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_SUMMARY_SELF),
   )
   const canRequestAttendanceCorrection = computed(() =>
-    canUseEmployeeSelfService.value &&
-    hasPermission(PERMISSIONS.ATTENDANCE_CORRECTION_REQUEST),
+    hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_CORRECTION_REQUEST),
   )
   const canRequestMissingAttendance = computed(() =>
-    canUseEmployeeSelfService.value &&
-    hasPermission(PERMISSIONS.ATTENDANCE_MISSING_REQUEST),
+    hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_MISSING_REQUEST),
   )
   const canViewOrganizationAttendanceSummary = computed(() =>
-    hasPermission(PERMISSIONS.ATTENDANCE_SUMMARY_ANY),
+    hasUserPermission(currentUser.value, PERMISSIONS.ATTENDANCE_SUMMARY_ANY),
   )
   const canViewAttendanceRecords = computed(() =>
-    hasPermission(PERMISSIONS.ATTENDANCE_VIEW_ANY),
+    hasUserPermission(currentUser.value, PERMISSIONS.ATTENDANCE_VIEW_ANY),
   )
   const canManageAttendance = computed(() =>
-    hasPermission(PERMISSIONS.ATTENDANCE_MANAGE),
+    hasUserPermission(currentUser.value, PERMISSIONS.ATTENDANCE_MANAGE),
   )
   const canExportAttendance = computed(() =>
-    hasPermission(PERMISSIONS.ATTENDANCE_EXPORT),
+    hasUserPermission(currentUser.value, PERMISSIONS.ATTENDANCE_EXPORT),
   )
   const canViewAttendanceAudit = computed(() =>
-    hasPermission(PERMISSIONS.ATTENDANCE_AUDIT_VIEW),
+    hasUserPermission(currentUser.value, PERMISSIONS.ATTENDANCE_AUDIT_VIEW),
   )
   const canAccessAttendanceWorkspace = computed(() =>
-    hasAnyPermission([
+    hasUserAnyPermission(currentUser.value, [
       PERMISSIONS.ATTENDANCE_RECORD,
       PERMISSIONS.ATTENDANCE_SUMMARY_SELF,
       PERMISSIONS.ATTENDANCE_SUMMARY_ANY,

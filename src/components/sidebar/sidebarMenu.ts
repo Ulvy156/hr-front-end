@@ -4,9 +4,8 @@ import {
   DASHBOARD_ACCESS_PERMISSIONS,
   EMPLOYEE_ACCESS_PERMISSIONS,
   LEAVE_ACCESS_PERMISSIONS,
-  PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+  OVERTIME_APPROVAL_ACCESS_PERMISSIONS,
   PAYROLL_RUN_ACCESS_PERMISSIONS,
-  PAYROLL_SALARY_ACCESS_PERMISSIONS,
   USER_MANAGEMENT_ALL_PERMISSIONS,
 } from '@/constants/accessControl'
 import { PERMISSIONS, type Permission } from '@/constants/permissions'
@@ -14,6 +13,8 @@ import {
   Banknote,
   CalendarCheck,
   CalendarClock,
+  CircleUserRound,
+  ClipboardCheck,
   FileText,
   History,
   LayoutDashboard,
@@ -30,6 +31,7 @@ export type SidebarMenuItem = {
   icon: Component
   section: 'main' | 'management' | 'account'
   permission?: Permission
+  employeePermission?: Permission
   anyPermissions?: Permission[]
   allPermissions?: Permission[]
   requiresEmployeeSelfService?: boolean
@@ -61,6 +63,14 @@ export const sidebarMenu: SidebarMenuItem[] = [
     anyPermissions: LEAVE_ACCESS_PERMISSIONS,
   },
   {
+    key: 'overtime-approvals',
+    label: 'Employee Overtime Requests',
+    path: '/attendance/overtime-approvals',
+    icon: ClipboardCheck,
+    section: 'management',
+    anyPermissions: OVERTIME_APPROVAL_ACCESS_PERMISSIONS,
+  },
+  {
     key: 'employees',
     label: 'Employees',
     path: '/employees',
@@ -90,7 +100,7 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/payroll/salaries',
     icon: Banknote,
     section: 'management',
-    anyPermissions: PAYROLL_SALARY_ACCESS_PERMISSIONS,
+    permission: PERMISSIONS.PAYROLL_SALARY_VIEW,
   },
   {
     key: 'profile',
@@ -105,8 +115,15 @@ export const sidebarMenu: SidebarMenuItem[] = [
     path: '/payroll/my-payslips',
     icon: FileText,
     section: 'account',
-    anyPermissions: PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
-    requiresEmployeeSelfService: true,
+    employeePermission: PERMISSIONS.PAYROLL_PAYSLIP_VIEW_OWN,
+  },
+  {
+    key: 'overtime-my-requests',
+    label: 'My Overtime Requests',
+    path: '/attendance/overtime-requests',
+    icon: CircleUserRound,
+    section: 'account',
+    employeePermission: PERMISSIONS.OVERTIME_REQUEST_VIEW_SELF,
   },
   {
     key: 'audit',

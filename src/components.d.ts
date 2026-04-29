@@ -27,6 +27,7 @@ declare module 'vue' {
     BaseTable: typeof import('./components/ui/BaseTable.vue')['default']
     BaseTextarea: typeof import('./components/ui/BaseTextarea.vue')['default']
     BaseTimePicker: typeof import('./components/ui/BaseTimePicker.vue')['default']
+    ConfirmActionModal: typeof import('./components/ui/ConfirmActionModal.vue')['default']
     ElDatePicker: typeof import('element-plus/es')['ElDatePicker']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDropdown: typeof import('element-plus/es')['ElDropdown']

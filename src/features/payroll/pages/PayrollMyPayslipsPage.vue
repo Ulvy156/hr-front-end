@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { RefreshCw } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import BaseDropdown, { type BaseDropdownOption } from '@/components/ui/BaseDropdown.vue'
 
-import PayrollPayslipDetailModal from '../components/PayrollPayslipDetailModal.vue'
 import PayrollPayslipsTable from '../components/PayrollPayslipsTable.vue'
 import { usePayroll } from '../composable/usePayroll'
 import type {
-  PayrollOwnPayslip,
   PayrollOwnPayslipFiltersState,
   PayrollOwnPayslipListParams,
 } from '../interface/payroll.interface'
@@ -20,23 +19,17 @@ import {
   formatPayrollStatusLabel,
 } from '../utils/payroll'
 
+const router = useRouter()
 const {
   payrollOwnPayslips,
-  payrollOwnPayslipDetail,
   isPayrollOwnPayslipsLoading,
-  isPayrollOwnPayslipDetailLoading,
   payrollOwnPayslipsError,
-  payrollOwnPayslipDetailError,
   fetchPayrollOwnPayslips,
   fetchPayrollOwnPayslipsByUrl,
-  fetchPayrollOwnPayslipDetail,
-  clearPayrollOwnPayslipDetail,
 } = usePayroll()
 
 const filters = reactive<PayrollOwnPayslipFiltersState>(createDefaultPayrollOwnPayslipFilters())
 const currentListUrl = ref<string | null>(null)
-const selectedPayslipId = ref<number | null>(null)
-const isDetailModalOpen = ref(false)
 
 const statusOptions: BaseDropdownOption[] = [
   { label: 'All statuses', value: '' },
@@ -116,33 +109,11 @@ const handleNavigateByUrl = async (url: string) => {
   }
 }
 
-const openPayslipDetail = async (payslip: PayrollOwnPayslip) => {
-  selectedPayslipId.value = payslip.id
-  isDetailModalOpen.value = true
-
-  try {
-    await fetchPayrollOwnPayslipDetail(payslip.id)
-  } catch {
-    return
-  }
-}
-
-const closePayslipDetail = () => {
-  isDetailModalOpen.value = false
-  selectedPayslipId.value = null
-  clearPayrollOwnPayslipDetail()
-}
-
-const retryPayslipDetail = async () => {
-  if (!selectedPayslipId.value) {
-    return
-  }
-
-  try {
-    await fetchPayrollOwnPayslipDetail(selectedPayslipId.value)
-  } catch {
-    return
-  }
+const openPayslipDetail = async (payslipId: number) => {
+  await router.push({
+    name: 'payroll-payslip-detail',
+    params: { id: payslipId },
+  })
 }
 
 onMounted(() => {
@@ -156,7 +127,7 @@ onMounted(() => {
       <div class="payroll-my-payslips-page-copy">
         <h1 class="payroll-my-payslips-page-title">My Payslips</h1>
         <p class="payroll-my-payslips-page-subtitle">
-          Review your payroll history and open the full payslip breakdown for each payroll month.
+          Review your payroll history and open a clean monthly payslip summary for each payroll month.
         </p>
       </div>
 
@@ -213,15 +184,6 @@ onMounted(() => {
       @navigate-by-url="handleNavigateByUrl"
       @retry="refreshPayslips"
       @view-details="openPayslipDetail"
-    />
-
-    <PayrollPayslipDetailModal
-      :error="payrollOwnPayslipDetailError"
-      :loading="isPayrollOwnPayslipDetailLoading"
-      :open="isDetailModalOpen"
-      :payslip="payrollOwnPayslipDetail"
-      @close="closePayslipDetail"
-      @retry="retryPayslipDetail"
     />
   </main>
 </template>

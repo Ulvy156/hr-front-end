@@ -5,16 +5,25 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import BaseTable, { type BaseTableColumn } from '@/components/ui/BaseTable.vue'
 
-import type {
-  PayrollOwnPayslip,
-  PayrollOwnPayslipListResponse,
-} from '../interface/payroll.interface'
+import type { PayrollOwnPayslipListResponse } from '../interface/payroll.interface'
 import {
   formatPayrollAmount,
   formatPayrollMonthLabel,
   getPayslipPageSummary,
 } from '../utils/payroll'
 import PayrollRunStatusBadge from './PayrollRunStatusBadge.vue'
+
+type PayslipTableRow = {
+  id: number
+  month: string | null
+  status: string | null
+  base: string
+  prorated: string
+  overtime: string
+  deduction: string
+  net: string
+  actions: number
+}
 
 const props = withDefaults(
   defineProps<{
@@ -31,7 +40,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   retry: []
   navigateByUrl: [url: string]
-  viewDetails: [payslip: PayrollOwnPayslip]
+  viewDetails: [payslipId: number]
 }>()
 
 const columns: BaseTableColumn[] = [
@@ -45,7 +54,7 @@ const columns: BaseTableColumn[] = [
   { key: 'actions', label: 'Actions', align: 'right' },
 ]
 
-const rows = computed(() =>
+const rows = computed<PayslipTableRow[]>(() =>
   (props.payslips?.data ?? []).map((payslip) => ({
     id: payslip.id,
     month: payslip.payroll_month,
@@ -70,6 +79,16 @@ const navigateByUrl = (url: string | null | undefined) => {
 
   emit('navigateByUrl', url)
 }
+
+const getRowMonthLabel = (row: Record<string, unknown>) => {
+  return formatPayrollMonthLabel(
+    typeof row.month === 'string' || row.month === null ? row.month : undefined,
+  )
+}
+
+const getRowStatus = (row: Record<string, unknown>) => {
+  return typeof row.status === 'string' || row.status === null ? row.status : undefined
+}
 </script>
 
 <template>
@@ -78,7 +97,7 @@ const navigateByUrl = (url: string | null | undefined) => {
       <div>
         <h2 class="payroll-payslips-table-title">My Payslips</h2>
         <p class="payroll-payslips-table-text">
-          Review monthly payroll snapshots and open the full salary breakdown for each month.
+          Review monthly payroll snapshots and open a simple payslip summary for each month.
         </p>
       </div>
 
@@ -106,17 +125,17 @@ const navigateByUrl = (url: string | null | undefined) => {
           <button
             class="payroll-payslips-row-link"
             type="button"
-            @click="emit('viewDetails', row.raw as PayrollOwnPayslip)"
+            @click="emit('viewDetails', Number(row.id))"
           >
             <span class="payroll-payslips-row-link-text">
               <CalendarDays :size="16" />
-              {{ formatPayrollMonthLabel((row.raw as PayrollOwnPayslip).payroll_month) }}
+              {{ getRowMonthLabel(row) }}
             </span>
           </button>
         </template>
 
         <template #cell-status="{ row }">
-          <PayrollRunStatusBadge :status="(row.raw as PayrollOwnPayslip).payroll_status" />
+          <PayrollRunStatusBadge :status="getRowStatus(row)" />
         </template>
 
         <template #cell-base="{ value }">
@@ -143,9 +162,9 @@ const navigateByUrl = (url: string | null | undefined) => {
 
         <template #cell-actions="{ row }">
           <div class="payroll-payslips-actions">
-            <BaseButton variant="ghost" @click="emit('viewDetails', row.raw as PayrollOwnPayslip)">
+            <BaseButton variant="ghost" @click="emit('viewDetails', Number(row.id))">
               <Eye :size="16" />
-              View
+              Open Payslip
             </BaseButton>
           </div>
         </template>

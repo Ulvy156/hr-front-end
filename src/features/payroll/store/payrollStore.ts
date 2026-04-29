@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { EmployeeListItem, EmployeeListParams } from '@/features/employees/interface/employee.interface'
 import { employeeService } from '@/features/employees/services/employeeService'
@@ -40,8 +40,8 @@ export const usePayrollStore = defineStore('payroll', () => {
   const payrollOwnPayslips = ref<PayrollOwnPayslipListResponse | null>(null)
   const payrollSalaries = ref<PayrollSalaryListResponse | null>(null)
   const payrollRuns = ref<PayrollRunListResponse | null>(null)
-  const payrollRunDetail = ref<PayrollRunDetail | null>(null)
-  const payrollOwnPayslipDetail = ref<PayrollOwnPayslip | null>(null)
+  const payrollRunDetail = shallowRef<PayrollRunDetail | null>(null)
+  const payrollOwnPayslipDetail = shallowRef<PayrollOwnPayslip | null>(null)
   const isPayrollOwnPayslipsLoading = ref(false)
   const isPayrollSalariesLoading = ref(false)
   const isPayrollRunsLoading = ref(false)
@@ -174,8 +174,10 @@ export const usePayrollStore = defineStore('payroll', () => {
       return response
     } catch (err) {
       payrollOwnPayslips.value = null
-      payrollOwnPayslipsError.value =
-        err instanceof Error ? err.message : 'Failed to load payslips.'
+      payrollOwnPayslipsError.value = getPayrollRequestErrorMessage(
+        err,
+        'Unable to load payslips right now.',
+      )
       throw err
     } finally {
       isPayrollOwnPayslipsLoading.value = false
@@ -193,8 +195,10 @@ export const usePayrollStore = defineStore('payroll', () => {
       return response
     } catch (err) {
       payrollOwnPayslips.value = null
-      payrollOwnPayslipsError.value =
-        err instanceof Error ? err.message : 'Failed to load payslips.'
+      payrollOwnPayslipsError.value = getPayrollRequestErrorMessage(
+        err,
+        'Unable to load payslips right now.',
+      )
       throw err
     } finally {
       isPayrollOwnPayslipsLoading.value = false
@@ -212,8 +216,10 @@ export const usePayrollStore = defineStore('payroll', () => {
       return response
     } catch (err) {
       payrollOwnPayslipDetail.value = null
-      payrollOwnPayslipDetailError.value =
-        err instanceof Error ? err.message : 'Failed to load payslip detail.'
+      payrollOwnPayslipDetailError.value = getPayrollRequestErrorMessage(
+        err,
+        'Unable to load payslip details right now.',
+      )
       throw err
     } finally {
       isPayrollOwnPayslipDetailLoading.value = false

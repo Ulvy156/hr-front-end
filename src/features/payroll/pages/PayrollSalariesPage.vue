@@ -27,6 +27,9 @@ import {
 import { PAYROLL_SALARY_STATUS } from '../interface/payroll.interface'
 
 const { hasPermission } = usePermission()
+const canViewPayrollSalaries = computed(() =>
+  hasPermission(PERMISSIONS.PAYROLL_SALARY_VIEW),
+)
 const canManagePayrollSalaries = computed(() =>
   hasPermission(PERMISSIONS.PAYROLL_SALARY_MANAGE),
 )
@@ -56,6 +59,7 @@ const activeSalary = ref<PayrollSalary | null>(null)
 const formSubmitError = ref('')
 const pageFeedback = ref('')
 const hasLoadedEmployeeOptions = ref(false)
+const hasSalarySetupActions = computed(() => canManagePayrollSalaries.value)
 
 const perPageOptions: BaseDropdownOption[] = [
   { label: '10 per page', value: 10 },
@@ -174,6 +178,10 @@ const handleNavigateByUrl = async (url: string) => {
 }
 
 const openCreateModal = () => {
+  if (!canManagePayrollSalaries.value || isSavingPayrollSalary.value) {
+    return
+  }
+
   salaryFormMode.value = 'create'
   activeSalary.value = null
   formSubmitError.value = ''
@@ -181,6 +189,10 @@ const openCreateModal = () => {
 }
 
 const openEditModal = (salary: PayrollSalary) => {
+  if (!canManagePayrollSalaries.value || isSavingPayrollSalary.value) {
+    return
+  }
+
   salaryFormMode.value = 'edit'
   activeSalary.value = salary
   formSubmitError.value = ''
@@ -194,6 +206,10 @@ const closeSalaryModal = () => {
 }
 
 const handleSaveSalary = async ({ payload, currentSalary }: PayrollSalaryFormSubmitPayload) => {
+  if (!canManagePayrollSalaries.value || isSavingPayrollSalary.value) {
+    return
+  }
+
   formSubmitError.value = ''
 
   try {
@@ -238,7 +254,12 @@ onMounted(() => {
       </div>
 
       <div class="payroll-salaries-page-actions">
-        <BaseButton v-if="canManagePayrollSalaries" @click="openCreateModal">
+        <BaseButton
+          v-if="canManagePayrollSalaries"
+          :disabled="isPayrollSalariesLoading"
+          :loading="isSavingPayrollSalary"
+          @click="openCreateModal"
+        >
           <CirclePlus :size="16" />
           Create Salary
         </BaseButton>
@@ -248,6 +269,16 @@ onMounted(() => {
         </BaseButton>
       </div>
     </header>
+
+    <BaseCard v-if="canViewPayrollSalaries && !hasSalarySetupActions" class="payroll-salaries-state-card">
+      <div class="payroll-salaries-state-copy">
+        <h2 class="payroll-salaries-section-title">View-Only Access</h2>
+        <p class="payroll-salaries-section-text">
+          You can review salary records, but create and edit actions require payroll salary
+          management permission.
+        </p>
+      </div>
+    </BaseCard>
 
     <BaseCard class="payroll-salaries-filters-card">
       <div class="payroll-salaries-section-header">
@@ -309,6 +340,7 @@ onMounted(() => {
     </BaseCard>
 
     <PayrollSalariesTable
+      :action-disabled="isPayrollSalariesLoading || isSavingPayrollSalary"
       :can-manage="canManagePayrollSalaries"
       :error="payrollSalariesError"
       :loading="isPayrollSalariesLoading"
@@ -336,6 +368,16 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.payroll-salaries-state-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.payroll-salaries-state-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .payroll-salaries-page-header,

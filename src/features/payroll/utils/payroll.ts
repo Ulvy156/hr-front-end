@@ -12,6 +12,30 @@ import type {
 } from '../interface/payroll.interface'
 import { PAYROLL_RUN_STATUS, PAYROLL_SALARY_STATUS } from '../interface/payroll.interface'
 
+type PayrollDisplayItemTone = 'default' | 'primary' | 'danger'
+
+export type PayrollDisplayItem = {
+  key: string
+  label: string
+  value: string
+  tone?: PayrollDisplayItemTone
+}
+
+export type PayrollDisplaySection = {
+  key: string
+  title: string
+  badgeLabel?: string
+  badgeVariant?: 'default' | 'primary' | 'success' | 'warning' | 'danger'
+  items: PayrollDisplayItem[]
+}
+
+export type PayrollOwnPayslipOverview = {
+  monthLabel: string
+  updatedAt: string
+  primaryHighlight: PayrollDisplayItem
+  summaryItems: PayrollDisplayItem[]
+}
+
 type PayrollRequestErrorPayload = {
   message?: string
   errors?:
@@ -335,36 +359,100 @@ export const getPayslipPageSummary = (
   return `Showing ${from ?? 0}-${to ?? 0} of ${total} payslips | Page ${current_page} of ${last_page}`
 }
 
-export const getPayslipSummaryCards = (payslip: PayrollOwnPayslip | null | undefined) => {
+export const getPayrollOwnPayslipOverview = (
+  payslip: PayrollOwnPayslip | null | undefined,
+): PayrollOwnPayslipOverview | null => {
+  if (!payslip) {
+    return null
+  }
+
+  return {
+    monthLabel: formatPayrollMonthLabel(payslip.payroll_month),
+    updatedAt: formatPayrollDateTime(payslip.updated_at),
+    primaryHighlight: {
+      key: 'net',
+      label: 'Net Salary',
+      value: formatPayrollAmount(payslip.net_salary),
+      tone: 'primary',
+    },
+    summaryItems: [
+      {
+        key: 'base',
+        label: 'Base Salary',
+        value: formatPayrollAmount(payslip.base_salary),
+      },
+      {
+        key: 'overtime',
+        label: 'Overtime Pay',
+        value: formatPayrollAmount(payslip.overtime_pay),
+      },
+      {
+        key: 'deduction',
+        label: 'Unpaid Leave Deduction',
+        value: formatPayrollAmount(payslip.unpaid_leave_deduction),
+        tone: Number(payslip.unpaid_leave_deduction) > 0 ? 'danger' : 'default',
+      },
+    ],
+  }
+}
+
+export const getPayrollOwnPayslipPageSections = (
+  payslip: PayrollOwnPayslip | null | undefined,
+): PayrollDisplaySection[] => {
   if (!payslip) {
     return []
   }
 
   return [
     {
-      key: 'base',
-      label: 'Base Salary',
-      value: formatPayrollAmount(payslip.base_salary),
+      key: 'payroll-info',
+      title: 'Payroll Info',
+      items: [
+        {
+          key: 'payroll-month',
+          label: 'Payroll Month',
+          value: formatPayrollMonthLabel(payslip.payroll_month),
+        },
+        {
+          key: 'status',
+          label: 'Status',
+          value: formatPayrollStatusLabel(payslip.payroll_status),
+        },
+        {
+          key: 'updated-at',
+          label: 'Updated Time',
+          value: formatPayrollDateTime(payslip.updated_at),
+        },
+      ],
     },
     {
-      key: 'prorated',
-      label: 'Prorated Base',
-      value: formatPayrollAmount(payslip.prorated_base_salary),
+      key: 'earnings',
+      title: 'Earnings',
+      items: [
+        {
+          key: 'base-salary',
+          label: 'Base Salary',
+          value: formatPayrollAmount(payslip.base_salary),
+        },
+        {
+          key: 'overtime-pay',
+          label: 'Overtime Pay',
+          value: formatPayrollAmount(payslip.overtime_pay),
+          tone: Number(payslip.overtime_pay) > 0 ? 'primary' : 'default',
+        },
+      ],
     },
     {
-      key: 'overtime',
-      label: 'Overtime Pay',
-      value: formatPayrollAmount(payslip.overtime_pay),
-    },
-    {
-      key: 'deduction',
-      label: 'Unpaid Leave Deduction',
-      value: formatPayrollAmount(payslip.unpaid_leave_deduction),
-    },
-    {
-      key: 'net',
-      label: 'Net Salary',
-      value: formatPayrollAmount(payslip.net_salary),
+      key: 'deductions',
+      title: 'Deductions',
+      items: [
+        {
+          key: 'unpaid-leave-deduction',
+          label: 'Unpaid Leave Deduction',
+          value: formatPayrollAmount(payslip.unpaid_leave_deduction),
+          tone: Number(payslip.unpaid_leave_deduction) > 0 ? 'danger' : 'default',
+        },
+      ],
     },
   ]
 }

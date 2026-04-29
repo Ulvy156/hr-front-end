@@ -3,10 +3,10 @@ import axios from 'axios'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { AuthUser } from '@/features/auth/interface/auth.interface'
 import {
+  hasUserEmployeePermission,
   hasUserAnyPermission,
   hasUserPermission,
 } from '@/features/auth/utils/permissions'
-import { canUseEmployeeSelfService } from '@/features/auth/utils/userContext'
 
 import type {
   LeaveDuration,
@@ -170,10 +170,7 @@ export const getAuthEmployeeId = (user: AuthUser | null | undefined) => {
 }
 
 export const canCreateOwnLeaveRequest = (user: AuthUser | null | undefined) => {
-  return (
-    canUseEmployeeSelfService(user) &&
-    hasUserPermission(user, PERMISSIONS.LEAVE_REQUEST_CREATE)
-  )
+  return hasUserEmployeePermission(user, PERMISSIONS.LEAVE_REQUEST_CREATE)
 }
 
 export const canViewReviewQueue = (user: AuthUser | null | undefined) => {

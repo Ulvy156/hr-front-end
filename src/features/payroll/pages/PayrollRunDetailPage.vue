@@ -21,10 +21,28 @@ import {
   formatPayrollDateTime,
   formatPayrollInteger,
   formatPayrollMonthLabel,
-  getPayrollRequestErrorMessage,
   formatPayrollSalarySourceLabel,
+  getPayrollRequestErrorMessage,
   getPayrollSalarySourceVariant,
 } from '../utils/payroll'
+
+type PayrollRunSummaryTone = 'default' | 'primary' | 'danger'
+
+type PayrollRunSummaryItem = {
+  key: string
+  label: string
+  value: string
+  helper?: string
+  tone?: PayrollRunSummaryTone
+}
+
+type PayrollRunSummaryGroup = {
+  key: string
+  title: string
+  description: string
+  tone: 'default' | 'primary' | 'secondary'
+  items: PayrollRunSummaryItem[]
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +71,12 @@ const payrollRunId = computed(() => {
 })
 
 const currentPayrollRun = computed(() => payrollRunDetail.value)
+const pageHeading = computed(() =>
+  currentPayrollRun.value
+    ? formatPayrollMonthLabel(currentPayrollRun.value.payroll_month)
+    : 'Payroll Run Details',
+)
+
 const canApproveCurrentRun = computed(
   () =>
     !!currentPayrollRun.value &&
@@ -84,19 +108,21 @@ const isRegeneratingCurrentRun = computed(
 )
 const isExportingCurrentRun = ref(false)
 
-const primarySummaryMetric = computed(() => {
+const primarySummaryMetric = computed<PayrollRunSummaryItem | null>(() => {
   if (!currentPayrollRun.value) {
     return null
   }
 
   return {
+    key: 'net-salary',
     label: 'Net Salary',
     value: formatPayrollAmount(currentPayrollRun.value.total_net_salary),
     helper: 'Final payout captured in this payroll snapshot.',
+    tone: 'primary',
   }
 })
 
-const secondarySummaryItems = computed(() => {
+const overviewSummaryItems = computed<PayrollRunSummaryItem[]>(() => {
   if (!currentPayrollRun.value) {
     return []
   }
@@ -112,7 +138,7 @@ const secondarySummaryItems = computed(() => {
   ]
 })
 
-const supportingSummaryGroups = computed(() => {
+const supportingSummaryGroups = computed<PayrollRunSummaryGroup[]>(() => {
   if (!currentPayrollRun.value) {
     return []
   }
@@ -120,7 +146,8 @@ const supportingSummaryGroups = computed(() => {
   return [
     {
       key: 'salary',
-      label: 'Salary',
+      title: 'Salary',
+      description: 'Base and prorated salary totals included in this run.',
       tone: 'default',
       items: [
         {
@@ -138,8 +165,9 @@ const supportingSummaryGroups = computed(() => {
       ],
     },
     {
-      key: 'adjustment',
-      label: 'Adjustments',
+      key: 'adjustments',
+      title: 'Adjustments',
+      description: 'Overtime additions and unpaid leave deductions applied to the run.',
       tone: 'primary',
       items: [
         {
@@ -161,7 +189,8 @@ const supportingSummaryGroups = computed(() => {
     },
     {
       key: 'work-info',
-      label: 'Work Info',
+      title: 'Work Info',
+      description: 'Working-day and monthly-hour assumptions used for this payroll run.',
       tone: 'secondary',
       items: [
         {
@@ -181,7 +210,7 @@ const supportingSummaryGroups = computed(() => {
   ]
 })
 
-const metadataItems = computed(() => {
+const auditItems = computed<PayrollRunSummaryItem[]>(() => {
   if (!currentPayrollRun.value) {
     return []
   }
@@ -279,7 +308,7 @@ const downloadExportFile = (blob: Blob, filename: string) => {
 }
 
 const handleApproveRun = async () => {
-  if (!currentPayrollRun.value || !canApproveCurrentRun.value) {
+  if (!currentPayrollRun.value || !canApproveCurrentRun.value || isApprovingCurrentRun.value) {
     return
   }
 
@@ -307,7 +336,7 @@ const handleApproveRun = async () => {
 }
 
 const handleRegenerateRun = async () => {
-  if (!currentPayrollRun.value || !canRegenerateCurrentRun.value) {
+  if (!currentPayrollRun.value || !canRegenerateCurrentRun.value || isRegeneratingCurrentRun.value) {
     return
   }
 
@@ -374,20 +403,18 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="payroll-detail-page">
-    <div class="payroll-detail-page-header">
-      <div class="payroll-detail-page-copy">
+    <header class="payroll-detail-page-header">
+      <div class="payroll-detail-page-header-main">
         <BaseButton variant="ghost" @click="goBack">
           <ArrowLeft :size="16" />
           Back to Payroll Runs
         </BaseButton>
 
-        <div class="payroll-detail-page-title-block">
+        <div class="payroll-detail-page-copy">
           <p class="payroll-detail-eyebrow">Payroll Run</p>
           <div class="payroll-detail-page-heading">
-            <h1 class="payroll-detail-page-title">
-              {{ payrollRunDetail ? formatPayrollMonthLabel(payrollRunDetail.payroll_month) : 'Payroll Run Details' }}
-            </h1>
-            <PayrollRunStatusBadge v-if="payrollRunDetail" :status="payrollRunDetail.status" />
+            <h1 class="payroll-detail-page-title">{{ pageHeading }}</h1>
+            <PayrollRunStatusBadge v-if="currentPayrollRun" :status="currentPayrollRun.status" />
           </div>
           <p class="payroll-detail-page-subtitle">
             Review payroll totals, employee breakdowns, and salary-related deductions for the selected payroll run.
@@ -427,7 +454,7 @@ onBeforeUnmount(() => {
           Export Excel
         </BaseButton>
       </div>
-    </div>
+    </header>
 
     <BaseCard v-if="!payrollRunId" class="payroll-detail-state-card">
       <div class="payroll-detail-state">
@@ -463,19 +490,22 @@ onBeforeUnmount(() => {
       </div>
     </BaseCard>
 
-    <template v-else-if="payrollRunDetail">
-      <BaseCard class="payroll-detail-summary-card">
-        <div class="payroll-detail-summary-panel">
-          <div class="payroll-detail-summary-header">
-            <div class="payroll-detail-summary-copy">
-              <p class="payroll-detail-eyebrow">Payroll Summary</p>
+    <template v-else-if="currentPayrollRun">
+      <BaseCard class="payroll-detail-overview-card">
+        <div class="payroll-detail-panel">
+          <div class="payroll-detail-panel-heading">
+            <div>
+              <h2 class="payroll-detail-section-title">Overview</h2>
+              <p class="payroll-detail-section-text">
+                Scan the main totals for this payroll snapshot at a glance.
+              </p>
             </div>
           </div>
 
-          <div class="payroll-detail-summary-top-grid">
+          <div class="payroll-detail-overview-grid">
             <div
               v-if="primarySummaryMetric"
-              class="payroll-detail-summary-item payroll-detail-summary-item-primary"
+              class="payroll-detail-summary-card-item payroll-detail-summary-card-item-primary"
             >
               <p class="payroll-detail-summary-label">{{ primarySummaryMetric.label }}</p>
               <p class="payroll-detail-summary-value payroll-detail-summary-value-primary">
@@ -484,73 +514,88 @@ onBeforeUnmount(() => {
               <p class="payroll-detail-summary-helper">{{ primarySummaryMetric.helper }}</p>
             </div>
 
-            <div class="payroll-detail-secondary-grid">
+            <div class="payroll-detail-overview-side">
               <div
-                v-for="item in secondarySummaryItems"
+                v-for="item in overviewSummaryItems"
                 :key="item.key"
                 :class="[
-                  'payroll-detail-summary-item',
-                  'payroll-detail-summary-item-secondary',
-                  `payroll-detail-summary-tone-${item.tone}`,
+                  'payroll-detail-summary-card-item',
+                  'payroll-detail-summary-card-item-secondary',
+                  `payroll-detail-summary-tone-${item.tone ?? 'default'}`,
                 ]"
               >
                 <p class="payroll-detail-summary-label">{{ item.label }}</p>
                 <p class="payroll-detail-summary-value payroll-detail-summary-value-secondary">
                   {{ item.value }}
                 </p>
-                <p class="payroll-detail-summary-helper">{{ item.helper }}</p>
+                <p v-if="item.helper" class="payroll-detail-summary-helper">{{ item.helper }}</p>
               </div>
             </div>
           </div>
+        </div>
+      </BaseCard>
 
-          <div class="payroll-detail-summary-groups">
-            <div
-              v-for="group in supportingSummaryGroups"
-              :key="group.key"
-              :class="[
-                'payroll-detail-summary-group',
-                `payroll-detail-summary-group-${group.tone}`,
-              ]"
-            >
-              <div class="payroll-detail-summary-group-header">
-                <p class="payroll-detail-summary-group-label">{{ group.label }}</p>
-              </div>
+      <div class="payroll-detail-summary-groups-grid">
+        <BaseCard
+          v-for="group in supportingSummaryGroups"
+          :key="group.key"
+          class="payroll-detail-group-card"
+        >
+          <div class="payroll-detail-group-panel">
+            <div class="payroll-detail-group-header">
+              <h3 class="payroll-detail-group-title">{{ group.title }}</h3>
+              <p class="payroll-detail-section-text">{{ group.description }}</p>
+            </div>
 
-              <div class="payroll-detail-summary-grid">
-                <div
-                  v-for="item in group.items"
-                  :key="item.key"
-                  :class="[
-                    'payroll-detail-summary-item',
-                    'payroll-detail-summary-item-compact',
-                    `payroll-detail-summary-tone-${item.tone}`,
-                  ]"
-                >
-                  <p class="payroll-detail-summary-label">{{ item.label }}</p>
-                  <p class="payroll-detail-summary-value payroll-detail-summary-value-compact">
-                    {{ item.value }}
-                  </p>
-                </div>
+            <div class="payroll-detail-group-grid">
+              <div
+                v-for="item in group.items"
+                :key="item.key"
+                :class="[
+                  'payroll-detail-summary-card-item',
+                  'payroll-detail-summary-card-item-compact',
+                  `payroll-detail-summary-tone-${item.tone ?? 'default'}`,
+                ]"
+              >
+                <p class="payroll-detail-summary-label">{{ item.label }}</p>
+                <p class="payroll-detail-summary-value payroll-detail-summary-value-compact">
+                  {{ item.value }}
+                </p>
               </div>
             </div>
           </div>
+        </BaseCard>
+      </div>
 
-          <div v-if="metadataItems.length" class="payroll-detail-meta-row">
+      <BaseCard v-if="auditItems.length" class="payroll-detail-audit-card">
+        <div class="payroll-detail-panel">
+          <div class="payroll-detail-panel-heading">
+            <div>
+              <h3 class="payroll-detail-section-title">Audit Info</h3>
+              <p class="payroll-detail-section-text">
+                Review when this payroll run was created and last updated.
+              </p>
+            </div>
+          </div>
+
+          <div class="payroll-detail-audit-grid">
             <div
-              v-for="item in metadataItems"
+              v-for="item in auditItems"
               :key="item.key"
-              class="payroll-detail-meta-chip"
+              class="payroll-detail-summary-card-item payroll-detail-summary-card-item-audit"
             >
-              <span class="payroll-detail-meta-label">{{ item.label }}</span>
-              <span class="payroll-detail-meta-value">{{ item.value }}</span>
+              <p class="payroll-detail-summary-label">{{ item.label }}</p>
+              <p class="payroll-detail-summary-value payroll-detail-summary-value-audit">
+                {{ item.value }}
+              </p>
             </div>
           </div>
         </div>
       </BaseCard>
 
       <BaseCard class="payroll-detail-breakdown-card">
-        <div class="payroll-detail-section">
-          <div class="payroll-detail-section-header">
+        <div class="payroll-detail-panel">
+          <div class="payroll-detail-panel-heading">
             <div>
               <h3 class="payroll-detail-section-title">Payroll Breakdown</h3>
               <p class="payroll-detail-section-text">
@@ -597,8 +642,8 @@ onBeforeUnmount(() => {
       </BaseCard>
 
       <BaseCard v-if="additionalRows.length" class="payroll-detail-metadata-card">
-        <div class="payroll-detail-section">
-          <div class="payroll-detail-section-header">
+        <div class="payroll-detail-panel">
+          <div class="payroll-detail-panel-heading">
             <div>
               <h3 class="payroll-detail-section-title">Supporting Breakdown</h3>
               <p class="payroll-detail-section-text">
@@ -666,56 +711,73 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .payroll-detail-page,
+.payroll-detail-page-header-main,
 .payroll-detail-page-copy,
-.payroll-detail-page-title-block,
-.payroll-detail-summary-panel,
-.payroll-detail-summary-copy,
-.payroll-detail-section,
+.payroll-detail-panel,
+.payroll-detail-group-panel,
+.payroll-detail-group-header,
 .payroll-detail-state,
-.payroll-detail-employee {
+.payroll-detail-employee,
+.payroll-detail-summary-card-item {
   display: flex;
   flex-direction: column;
 }
 
 .payroll-detail-page,
-.payroll-detail-section {
+.payroll-detail-panel,
+.payroll-detail-group-panel {
   gap: 1.5rem;
 }
 
-.payroll-detail-page-header,
-.payroll-detail-section-header,
-.payroll-detail-page-heading {
+.payroll-detail-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
-.payroll-detail-page-actions,
-.payroll-detail-secondary-grid,
-.payroll-detail-meta-row,
-.payroll-detail-state-actions {
+.payroll-detail-page-header-main {
   display: flex;
+  align-items: start;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.payroll-detail-page-heading,
+.payroll-detail-panel-heading,
+.payroll-detail-page-actions {
+  display: flex;
+  align-items: flex-start;
   gap: 0.75rem;
 }
 
+.payroll-detail-page-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.payroll-detail-page-header-main :deep(.base-button) {
+  flex-shrink: 0;
+}
+
 .payroll-detail-page-copy,
-.payroll-detail-page-title-block,
-.payroll-detail-summary-copy,
+.payroll-detail-group-header,
+.payroll-detail-state,
 .payroll-detail-employee,
-.payroll-detail-state {
+.payroll-detail-summary-card-item {
   gap: 0.5rem;
 }
 
 .payroll-detail-page-title,
-.payroll-detail-summary-title,
 .payroll-detail-section-title,
+.payroll-detail-group-title,
 .payroll-detail-state-title,
 .payroll-detail-summary-value,
-.payroll-detail-summary-helper,
 .payroll-detail-value,
 .payroll-detail-net-value,
-.payroll-detail-meta-value {
+.payroll-detail-table-value {
   color: hsl(var(--foreground));
 }
 
@@ -724,125 +786,94 @@ onBeforeUnmount(() => {
 .payroll-detail-state-text,
 .payroll-detail-eyebrow,
 .payroll-detail-summary-label,
-.payroll-detail-meta-label {
+.payroll-detail-summary-helper {
   color: hsl(var(--muted-foreground));
 }
 
 .payroll-detail-eyebrow,
-.payroll-detail-summary-label,
-.payroll-detail-meta-label {
+.payroll-detail-summary-label {
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.payroll-detail-summary-card,
+.payroll-detail-page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.payroll-detail-page-copy {
+  min-width: 0;
+}
+
+.payroll-detail-state-card,
+.payroll-detail-overview-card,
+.payroll-detail-group-card,
+.payroll-detail-audit-card,
 .payroll-detail-breakdown-card,
-.payroll-detail-metadata-card,
-.payroll-detail-state-card {
+.payroll-detail-metadata-card {
   overflow: hidden;
 }
 
-.payroll-detail-summary-panel,
-.payroll-detail-section {
+.payroll-detail-panel,
+.payroll-detail-group-panel {
   padding: 1.25rem;
 }
 
-.payroll-detail-summary-top-grid {
+.payroll-detail-overview-grid {
   display: grid;
-  grid-template-columns: minmax(18rem, 1.7fr) minmax(12rem, 1fr);
+  grid-template-columns: minmax(20rem, 1.8fr) minmax(15rem, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.payroll-detail-overview-side {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 1rem;
 }
 
-.payroll-detail-secondary-grid {
-  flex-direction: column;
-}
-
-.payroll-detail-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.payroll-detail-summary-groups {
+.payroll-detail-summary-groups-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
-.payroll-detail-summary-group,
-.payroll-detail-summary-item {
-  display: flex;
-  flex-direction: column;
+.payroll-detail-group-grid,
+.payroll-detail-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 
-.payroll-detail-summary-group {
-  gap: 0.75rem;
-  padding: 0.875rem;
-  border: 1px solid hsl(var(--border-gray));
-  border-radius: var(--radius);
-  background: hsl(var(--card));
-  box-shadow: var(--shadow-card);
-}
-
-.payroll-detail-summary-group-default {
-  background: hsl(var(--secondary) / 0.08);
-}
-
-.payroll-detail-summary-group-primary {
-  background: hsl(var(--primary) / 0.04);
-}
-
-.payroll-detail-summary-group-secondary {
-  background: hsl(var(--muted) / 0.45);
-}
-
-.payroll-detail-summary-group-header {
-  display: flex;
-  align-items: center;
-}
-
-.payroll-detail-summary-group-label {
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.payroll-detail-summary-item {
+.payroll-detail-summary-card-item {
   justify-content: center;
-  gap: 0.3rem;
-  min-height: 6.4rem;
-  padding: 0.75rem 0.875rem;
+  min-height: 7rem;
+  padding: 1rem;
   border: 1px solid hsl(var(--border-gray));
   border-radius: var(--radius);
   background: hsl(var(--card));
 }
 
-.payroll-detail-summary-item-primary {
-  min-height: 10.5rem;
-  padding: 1rem 1.125rem;
+.payroll-detail-summary-card-item-primary {
+  min-height: 12rem;
+  padding: 1.25rem;
   border-left: 4px solid hsl(var(--primary));
+  background: hsl(var(--primary) / 0.04);
   box-shadow: var(--shadow-card);
 }
 
-.payroll-detail-summary-item-secondary {
-  min-height: 10.5rem;
-}
-
-.payroll-detail-summary-item-compact {
-  min-height: 5.25rem;
-}
-
-.payroll-detail-summary-item-primary,
-.payroll-detail-summary-item-secondary {
-  align-items: flex-start;
+.payroll-detail-summary-card-item-secondary,
+.payroll-detail-summary-card-item-audit,
+.payroll-detail-summary-card-item-compact {
+  height: 100%;
 }
 
 .payroll-detail-summary-tone-default {
   border-color: hsl(var(--border-gray));
+  background: hsl(var(--secondary) / 0.06);
 }
 
 .payroll-detail-summary-tone-primary {
@@ -864,12 +895,12 @@ onBeforeUnmount(() => {
 }
 
 .payroll-detail-summary-value {
-  font-size: 1.125rem;
   font-weight: 700;
 }
 
 .payroll-detail-summary-value-primary {
-  font-size: clamp(2.4rem, 5vw, 3.75rem);
+  color: hsl(var(--primary));
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
   line-height: 0.95;
 }
 
@@ -877,40 +908,32 @@ onBeforeUnmount(() => {
   font-size: 2rem;
 }
 
-.payroll-detail-summary-value-compact {
-  font-size: 1.4rem;
+.payroll-detail-summary-value-compact,
+.payroll-detail-summary-value-audit {
+  font-size: 1.2rem;
 }
 
 .payroll-detail-summary-helper {
   font-size: var(--text-sm);
-  color: hsl(var(--muted-foreground));
+}
+
+.payroll-detail-group-card {
+  height: 100%;
+}
+
+.payroll-detail-group-panel {
+  min-height: 100%;
+}
+
+.payroll-detail-group-title,
+.payroll-detail-section-title {
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .payroll-detail-net-value {
   font-weight: 700;
   color: hsl(var(--primary));
-}
-
-.payroll-detail-meta-row {
-  flex-wrap: wrap;
-}
-
-.payroll-detail-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid hsl(var(--border-gray));
-  border-radius: 9999px;
-  background: hsl(var(--card));
-}
-
-.payroll-detail-meta-value {
-  font-weight: 600;
-}
-
-.payroll-detail-table-value {
-  color: hsl(var(--foreground));
 }
 
 .payroll-detail-state {
@@ -919,6 +942,11 @@ onBeforeUnmount(() => {
   min-height: 16rem;
   padding: 1.5rem;
   text-align: center;
+}
+
+.payroll-detail-state-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .payroll-detail-breakdown-table :deep(.base-table thead th:last-child),
@@ -939,29 +967,38 @@ onBeforeUnmount(() => {
   color: hsl(var(--primary));
 }
 
+@media (max-width: 1024px) {
+  .payroll-detail-page-header {
+    flex-direction: column;
+  }
+
+  .payroll-detail-page-actions {
+    justify-content: flex-start;
+  }
+
+  .payroll-detail-overview-grid,
+  .payroll-detail-summary-groups-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
-  .payroll-detail-page-header,
-  .payroll-detail-section-header,
-  .payroll-detail-page-heading {
+  .payroll-detail-page-header-main,
+  .payroll-detail-page-heading,
+  .payroll-detail-panel-heading {
     flex-direction: column;
     align-items: stretch;
   }
 
   .payroll-detail-page-actions,
-  .payroll-detail-summary-top-grid,
-  .payroll-detail-secondary-grid {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .payroll-detail-summary-groups,
-  .payroll-detail-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .payroll-detail-state-actions {
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
+  }
+
+  .payroll-detail-group-grid,
+  .payroll-detail-audit-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

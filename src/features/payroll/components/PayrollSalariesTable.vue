@@ -21,11 +21,13 @@ const props = withDefaults(
     loading?: boolean
     error?: string
     canManage?: boolean
+    actionDisabled?: boolean
   }>(),
   {
     loading: false,
     error: '',
     canManage: false,
+    actionDisabled: false,
   },
 )
 
@@ -87,6 +89,7 @@ const getActionItems = (salary: PayrollSalary) => {
       label: 'Edit Salary',
       icon: PencilLine,
       tone: 'primary',
+      disabled: props.actionDisabled,
     },
   ] satisfies ActionMenuItem[]
 }

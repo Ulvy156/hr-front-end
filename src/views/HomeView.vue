@@ -23,6 +23,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import { useAuth } from '@/features/auth/composable/useAuth'
 import { usePermission } from '@/features/auth/composable/usePermission'
+import { hasUserEmployeePermission } from '@/features/auth/utils/permissions'
 import DashboardAdminSection from '@/features/dashboard/components/DashboardAdminSection.vue'
 import DashboardIssueCards from '@/features/dashboard/components/DashboardIssueCards.vue'
 import DashboardQuickActions from '@/features/dashboard/components/DashboardQuickActions.vue'
@@ -43,8 +44,8 @@ import type {
 import type { DashboardIssueCardItem } from '@/features/dashboard/components/DashboardIssueCards.vue'
 
 const { dashboard, error, isLoading, fetchDashboard, lastUpdated } = useDashboard()
-const { canUseEmployeeSelfService } = useAuth()
-const { hasAllPermissions, hasAnyPermission, hasPermission } = usePermission()
+const { currentUser } = useAuth()
+const { hasAllPermissions, hasAnyPermission } = usePermission()
 const router = useRouter()
 const issueSectionRef = ref<HTMLElement | null>(null)
 const recordsSectionRef = ref<HTMLElement | null>(null)
@@ -80,12 +81,15 @@ const canAccessAttendancePage = computed(() => hasAnyPermission(ATTENDANCE_ACCES
 const canAccessEmployeesPage = computed(() => hasAnyPermission(EMPLOYEE_ACCESS_PERMISSIONS))
 const canAccessUsersPage = computed(() => hasAllPermissions(USER_MANAGEMENT_ALL_PERMISSIONS))
 const canViewPersonalAttendanceSummary = computed(() =>
-  canUseEmployeeSelfService.value &&
-  hasAnyPermission([PERMISSIONS.ATTENDANCE_SUMMARY_SELF, PERMISSIONS.ATTENDANCE_VIEW_SELF]),
+  hasUserEmployeePermission(
+    currentUser.value,
+    PERMISSIONS.ATTENDANCE_SUMMARY_SELF,
+  ) ||
+  hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_VIEW_SELF),
 )
 const canViewPersonalAttendanceHistory = computed(() =>
-  canUseEmployeeSelfService.value &&
-  hasAnyPermission([PERMISSIONS.ATTENDANCE_VIEW_SELF, PERMISSIONS.ATTENDANCE_VIEW_ANY]),
+  hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_VIEW_SELF) ||
+  hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_VIEW_ANY),
 )
 const canViewWorkforceOverview = computed(() =>
   hasAnyPermission([
@@ -443,7 +447,7 @@ onMounted(async () => {
 
 function canAccessDashboardAction(actionKey: string) {
   if (actionKey === 'scan_attendance') {
-    return canUseEmployeeSelfService.value && hasPermission(PERMISSIONS.ATTENDANCE_RECORD)
+    return hasUserEmployeePermission(currentUser.value, PERMISSIONS.ATTENDANCE_RECORD)
   }
 
   if (actionKey === 'view_attendance_history' || actionKey === 'attendance_history') {

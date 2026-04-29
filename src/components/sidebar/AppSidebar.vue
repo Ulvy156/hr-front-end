@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { getPrimaryRole } from '@/constants/roles'
 import { usePermission } from '@/features/auth/composable/usePermission'
 import { useAuthStore } from '@/features/auth/store/authStore'
+import { hasUserEmployeePermission } from '@/features/auth/utils/permissions'
 import { canUseEmployeeSelfService } from '@/features/auth/utils/userContext'
 
 import { sidebarMenu, type SidebarMenuItem } from './sidebarMenu'
@@ -30,9 +31,7 @@ const sectionLabels = {
 } as const
 
 const userName = computed(() => {
-  return typeof user.value?.name === 'string' && user.value.name
-    ? user.value.name
-    : 'User'
+  return typeof user.value?.name === 'string' && user.value.name ? user.value.name : 'User'
 })
 
 const formatRoleName = (roleName: string) => {
@@ -54,11 +53,7 @@ const userPosition = computed(() => {
 })
 
 const userInitials = computed(() => {
-  const words = userName.value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
+  const words = userName.value.trim().split(/\s+/).filter(Boolean).slice(0, 2)
 
   if (!words.length) {
     return 'U'
@@ -69,6 +64,10 @@ const userInitials = computed(() => {
 
 const visibleMenuItems = computed(() =>
   sidebarMenu.filter((item) => {
+    if (item.employeePermission && !hasUserEmployeePermission(user.value, item.employeePermission)) {
+      return false
+    }
+
     if (item.requiresEmployeeSelfService && !canUseEmployeeSelfService(user.value)) {
       return false
     }
@@ -130,13 +129,20 @@ const handleLogout = async () => {
           :title="collapsed ? `${userName} ${userPosition ? `• ${userPosition}` : ''}` : undefined"
           class="flex min-w-0 items-center gap-3 border border-[hsl(var(--border-gray))] bg-[hsl(var(--secondary)/0.22)] transition hover:border-[hsl(var(--primary)/0.18)] hover:bg-[hsl(var(--secondary)/0.4)]"
         >
-          <div v-if="!collapsed" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-sm font-semibold text-[hsl(var(--primary-foreground))]">
+          <div
+            v-if="!collapsed"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[hsl(var(--primary))] text-sm font-semibold text-[hsl(var(--primary-foreground))]"
+          >
             {{ userInitials }}
           </div>
 
           <div v-if="!collapsed" class="min-w-0 flex-1">
-            <p class="truncate text-sm font-semibold text-[hsl(var(--foreground))]">{{ userName }}</p>
-            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">{{ userPosition || 'Account' }}</p>
+            <p class="truncate text-sm font-semibold text-[hsl(var(--foreground))]">
+              {{ userName }}
+            </p>
+            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">
+              {{ userPosition || 'Account' }}
+            </p>
           </div>
         </RouterLink>
 
@@ -158,7 +164,11 @@ const handleLogout = async () => {
         <div
           v-for="group in groupedMenuItems"
           :key="group.key"
-          :class="collapsed ? 'mb-4 pt-0 first:mt-0' : 'mb-4 border-t border-[hsl(var(--border-gray)/0.7)] pt-4 first:mt-0 first:border-t-0 first:pt-0'"
+          :class="
+            collapsed
+              ? 'mb-4 pt-0 first:mt-0'
+              : 'mb-4 border-t border-[hsl(var(--border-gray)/0.7)] pt-4 first:mt-0 first:border-t-0 first:pt-0'
+          "
         >
           <p
             v-if="!collapsed"
@@ -173,18 +183,20 @@ const handleLogout = async () => {
               :key="item.key"
               :to="item.path"
               :title="collapsed ? item.label : undefined"
-              :class="
-                [
-                  collapsed ? 'justify-center px-0' : 'px-3',
-                  isActive(item)
-                    ? 'text-[var(--nav-active-item)] shadow-sm'
-                    : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]',
-                ]
-              "
+              :class="[
+                collapsed ? 'justify-center px-0' : 'px-3',
+                isActive(item)
+                  ? 'text-[var(--nav-active-item)] shadow-sm'
+                  : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]',
+              ]"
               class="group relative flex w-full min-h-[3rem] items-center rounded-2xl py-3 transition-all duration-200"
             >
               <span
-                :class="isActive(item) ? 'bg-[hsl(var(--primary))] opacity-100' : 'opacity-0 group-hover:opacity-50'"
+                :class="
+                  isActive(item)
+                    ? 'bg-[hsl(var(--primary))] opacity-100'
+                    : 'opacity-0 group-hover:opacity-50'
+                "
                 class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition"
               />
 
@@ -199,10 +211,7 @@ const handleLogout = async () => {
                 <component :is="item.icon" :size="18" class="shrink-0" />
               </span>
 
-              <div
-                v-if="!collapsed"
-                class="ml-3 min-w-0 flex-1"
-              >
+              <div v-if="!collapsed" class="ml-3 min-w-0 flex-1">
                 <p
                   :class="isActive(item) ? 'font-semibold' : 'font-medium'"
                   class="truncate text-sm"
@@ -223,13 +232,17 @@ const handleLogout = async () => {
           class="flex w-full items-center rounded-2xl border border-[hsl(var(--border-gray))] text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
           @click="handleLogout"
         >
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/0.25)]">
+          <span
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/0.25)]"
+          >
             <LogOut :size="18" class="shrink-0" />
           </span>
 
           <div v-if="!collapsed" class="ml-3 min-w-0 flex-1 text-left">
             <p class="truncate text-sm font-semibold">Logout</p>
-            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">Sign out of your account</p>
+            <p class="truncate text-xs text-[hsl(var(--muted-foreground))]">
+              Sign out of your account
+            </p>
           </div>
         </button>
       </div>

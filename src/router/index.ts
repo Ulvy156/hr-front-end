@@ -5,13 +5,14 @@ import {
   DASHBOARD_ACCESS_PERMISSIONS,
   EMPLOYEE_ACCESS_PERMISSIONS,
   LEAVE_ACCESS_PERMISSIONS,
-  PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+  OVERTIME_APPROVAL_ACCESS_PERMISSIONS,
   PAYROLL_RUN_ACCESS_PERMISSIONS,
   USER_MANAGEMENT_ALL_PERMISSIONS,
 } from '@/constants/accessControl'
 import { PERMISSIONS } from '@/constants/permissions'
 import { sidebarMenu } from '@/components/sidebar/sidebarMenu'
 import {
+  hasUserEmployeePermission,
   hasUserAllPermissions,
   hasUserAnyPermission,
   hasUserPermission,
@@ -64,7 +65,7 @@ const router = createRouter({
           component: () => import('@/features/leave/pages/LeaveRequestPage.vue'),
           meta: {
             requiresAuth: true,
-            permission: PERMISSIONS.LEAVE_REQUEST_CREATE,
+            employeePermission: PERMISSIONS.LEAVE_REQUEST_CREATE,
             requiresEmployeeSelfService: true,
             employeeSelfServiceFallback: { name: 'leave' },
           },
@@ -136,9 +137,29 @@ const router = createRouter({
           component: () => import('@/features/attendance/pages/AttendanceScanPage.vue'),
           meta: {
             requiresAuth: true,
-            permission: PERMISSIONS.ATTENDANCE_RECORD,
+            employeePermission: PERMISSIONS.ATTENDANCE_RECORD,
             requiresEmployeeSelfService: true,
             employeeSelfServiceFallback: { name: 'attendance' },
+          },
+        },
+        {
+          path: 'attendance/overtime-requests',
+          name: 'attendance-overtime-requests',
+          component: () => import('@/features/overtime/pages/OvertimeMyRequestsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            employeePermission: PERMISSIONS.OVERTIME_REQUEST_VIEW_SELF,
+            requiresEmployeeSelfService: true,
+            employeeSelfServiceFallback: { path: '/dashboard' },
+          },
+        },
+        {
+          path: 'attendance/overtime-approvals',
+          name: 'attendance-overtime-approvals',
+          component: () => import('@/features/overtime/pages/OvertimeApprovalsPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: OVERTIME_APPROVAL_ACCESS_PERMISSIONS,
           },
         },
         {
@@ -188,7 +209,18 @@ const router = createRouter({
           component: () => import('@/features/payroll/pages/PayrollMyPayslipsPage.vue'),
           meta: {
             requiresAuth: true,
-            anyPermissions: PAYROLL_PAYSLIP_ACCESS_PERMISSIONS,
+            employeePermission: PERMISSIONS.PAYROLL_PAYSLIP_VIEW_OWN,
+            requiresEmployeeSelfService: true,
+            employeeSelfServiceFallback: { name: 'dashboard' },
+          },
+        },
+        {
+          path: 'payroll/payslips/:id',
+          name: 'payroll-payslip-detail',
+          component: () => import('@/features/payroll/pages/PayrollPayslipDetailPage.vue'),
+          meta: {
+            requiresAuth: true,
+            employeePermission: PERMISSIONS.PAYROLL_PAYSLIP_VIEW_OWN,
             requiresEmployeeSelfService: true,
             employeeSelfServiceFallback: { name: 'dashboard' },
           },
@@ -213,10 +245,7 @@ const router = createRouter({
               PERMISSIONS.ROLE_VIEW,
               PERMISSIONS.PERMISSION_VIEW,
             ],
-            anyPermissions: [
-              PERMISSIONS.USER_ROLE_ASSIGN,
-              PERMISSIONS.USER_PERMISSION_ASSIGN,
-            ],
+            anyPermissions: [PERMISSIONS.USER_ROLE_ASSIGN, PERMISSIONS.USER_PERMISSION_ASSIGN],
           },
         },
         {
@@ -248,8 +277,11 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const guestOnly = to.matched.some((record) => record.meta.guestOnly)
-  const requiredPermission = to.matched.find((record) => typeof record.meta.permission === 'string')?.meta
-    .permission as string | undefined
+  const requiredPermission = to.matched.find((record) => typeof record.meta.permission === 'string')
+    ?.meta.permission as string | undefined
+  const requiredEmployeePermission = to.matched.find(
+    (record) => typeof record.meta.employeePermission === 'string',
+  )?.meta.employeePermission as string | undefined
   const anyPermissions = to.matched.flatMap((record) => {
     const metaPermissions = record.meta.anyPermissions as string[] | undefined
 
@@ -263,9 +295,9 @@ router.beforeEach(async (to) => {
   const requiresEmployeeSelfService = to.matched.some(
     (record) => record.meta.requiresEmployeeSelfService,
   )
-  const employeeSelfServiceFallback =
-    to.matched.find((record) => record.meta.employeeSelfServiceFallback)?.meta
-      .employeeSelfServiceFallback
+  const employeeSelfServiceFallback = to.matched.find(
+    (record) => record.meta.employeeSelfServiceFallback,
+  )?.meta.employeeSelfServiceFallback
   const sidebarItem = sidebarMenu.find((item) => item.path === to.path)
 
   if (!authStore.initialized) {
@@ -292,11 +324,17 @@ router.beforeEach(async (to) => {
   if (requiresAuth) {
     const canAccessByPermission =
       (!requiredPermission || hasUserPermission(authStore.user, requiredPermission)) &&
+      (!requiredEmployeePermission ||
+        hasUserEmployeePermission(authStore.user, requiredEmployeePermission)) &&
       (!anyPermissions.length || hasUserAnyPermission(authStore.user, anyPermissions)) &&
       (!allPermissions.length || hasUserAllPermissions(authStore.user, allPermissions)) &&
       (!sidebarItem?.permission || hasUserPermission(authStore.user, sidebarItem.permission)) &&
-      (!sidebarItem?.anyPermissions?.length || hasUserAnyPermission(authStore.user, sidebarItem.anyPermissions)) &&
-      (!sidebarItem?.allPermissions?.length || hasUserAllPermissions(authStore.user, sidebarItem.allPermissions))
+      (!sidebarItem?.employeePermission ||
+        hasUserEmployeePermission(authStore.user, sidebarItem.employeePermission)) &&
+      (!sidebarItem?.anyPermissions?.length ||
+        hasUserAnyPermission(authStore.user, sidebarItem.anyPermissions)) &&
+      (!sidebarItem?.allPermissions?.length ||
+        hasUserAllPermissions(authStore.user, sidebarItem.allPermissions))
 
     if (!canAccessByPermission) {
       return authStore.isAuthenticated ? { path: '/dashboard' } : { path: '/login' }

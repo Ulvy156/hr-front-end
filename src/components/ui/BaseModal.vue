@@ -87,7 +87,9 @@ const handleUpdateModelValue = (value: boolean) => {
     <slot />
 
     <template v-if="$slots.footer" #footer>
-      <slot name="footer" />
+      <div class="flex w-full items-center justify-end gap-x-3 gap-y-2 flex-wrap">
+        <slot name="footer" />
+      </div>
     </template>
   </ElDialog>
 </template>

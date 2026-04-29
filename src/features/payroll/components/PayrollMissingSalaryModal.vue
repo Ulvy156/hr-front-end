@@ -9,6 +9,7 @@ const props = defineProps<{
   open: boolean
   month: string
   employees: PayrollMissingSalaryEmployee[]
+  canOpenSalarySetup?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +27,10 @@ const emit = defineEmits<{
         </p>
         <p class="payroll-missing-salary-text">
           Payroll month: {{ formatPayrollMonthLabel(month) }}
+        </p>
+        <p v-if="!canOpenSalarySetup" class="payroll-missing-salary-text">
+          Salary Setup is unavailable for this account. Contact an authorized payroll administrator
+          to update salary records.
         </p>
       </div>
 
@@ -52,7 +57,9 @@ const emit = defineEmits<{
 
     <template #footer>
       <BaseButton variant="ghost" @click="emit('close')">Cancel</BaseButton>
-      <BaseButton @click="emit('goToSalarySetup')">Go to Salary Setup</BaseButton>
+      <BaseButton v-if="canOpenSalarySetup" @click="emit('goToSalarySetup')">
+        Go to Salary Setup
+      </BaseButton>
     </template>
   </BaseModal>
 </template>

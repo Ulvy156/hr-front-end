@@ -1,20 +1,12 @@
 <script setup lang="ts">
-import { ElMessageBox } from 'element-plus'
+import type { Component } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Check,
-  Download,
-  Eye,
-  Plus,
-  RefreshCw,
-  RotateCcw,
-  Wallet,
-  XCircle,
-} from 'lucide-vue-next'
+import { Check, Download, Eye, Plus, RefreshCw, RotateCcw, Wallet, XCircle } from 'lucide-vue-next'
 
 import type { ActionMenuItem } from '@/components/ui/ActionMenu.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
+import ConfirmActionModal from '@/components/ui/ConfirmActionModal.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import BaseDropdown, { type BaseDropdownOption } from '@/components/ui/BaseDropdown.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -36,21 +28,36 @@ import {
   canMarkPayrollRunPaid,
   canRegeneratePayrollRun,
   createDefaultPayrollRunFilters,
+  formatPayrollMonthLabel,
   formatPayrollStatusLabel,
   getCurrentPayrollMonth,
   getPayrollRequestErrorMessage,
 } from '../utils/payroll'
 
-type PayrollRunActionCommand =
-  | 'approve'
-  | 'cancel'
-  | 'mark-paid'
-  | 'regenerate'
-  | 'export'
+type PayrollRunActionCommand = 'approve' | 'cancel' | 'mark-paid' | 'regenerate' | 'export'
 type PayrollRunMutationActionCommand = Exclude<PayrollRunActionCommand, 'export'>
+type PayrollRunConfirmationStatus = 'primary' | 'success' | 'warning' | 'danger'
+type PayrollRunConfirmationState = {
+  run: PayrollRun
+  action: PayrollRunMutationActionCommand
+}
+type PayrollRunMutationActionConfig = {
+  title: string
+  message: string
+  detail: string
+  statusLabel: string
+  status: PayrollRunConfirmationStatus
+  icon: Component
+  actionLabel: string
+  actionVariant: 'primary' | 'danger'
+  callback: () => Promise<unknown>
+  successMessage: string
+  errorMessage: string
+}
 
 const { hasPermission } = usePermission()
 const canGeneratePayrollRuns = computed(() => hasPermission(PERMISSIONS.PAYROLL_RUN_GENERATE))
+const canViewPayrollSalaries = computed(() => hasPermission(PERMISSIONS.PAYROLL_SALARY_VIEW))
 const canApproveRuns = computed(() => hasPermission(PERMISSIONS.PAYROLL_RUN_APPROVE))
 const canMarkRunsPaid = computed(() => hasPermission(PERMISSIONS.PAYROLL_RUN_MARK_PAID))
 const canCancelRuns = computed(() => hasPermission(PERMISSIONS.PAYROLL_RUN_CANCEL))
@@ -87,6 +94,17 @@ const currentListUrl = ref<string | null>(null)
 const headerError = ref('')
 const isExportingPayrollRun = ref(false)
 const exportingPayrollRunId = ref<number | null>(null)
+const payrollRunConfirmation = ref<PayrollRunConfirmationState | null>(null)
+
+const hasRunManagementActions = computed(
+  () =>
+    canGeneratePayrollRuns.value ||
+    canApproveRuns.value ||
+    canMarkRunsPaid.value ||
+    canCancelRuns.value ||
+    canRegenerateRuns.value ||
+    canExportPayrollRuns.value,
+)
 
 const statusOptions: BaseDropdownOption[] = [
   { label: 'All statuses', value: '' },
@@ -171,6 +189,11 @@ const handleNavigateByUrl = async (url: string) => {
 }
 
 const openGenerateModal = () => {
+  console.log(canGeneratePayrollRuns.value)
+  if (!canGeneratePayrollRuns.value || isGeneratingPayrollRun.value || isCheckingPayrollGeneration.value) {
+    return false;
+  }
+
   clearPayrollGenerationCheck()
   generateMonth.value = filters.month || getCurrentPayrollMonth()
   isGenerateModalOpen.value = true
@@ -200,6 +223,10 @@ const downloadExportFile = (blob: Blob, filename: string) => {
 }
 
 const handleGeneratePayrollRun = async () => {
+  if (!canGeneratePayrollRuns.value || isGeneratingPayrollRun.value || isCheckingPayrollGeneration.value) {
+    return false;
+  }
+
   if (!generateMonth.value) {
     ElMessage.error('Select a payroll month before generating a payroll run.')
     return
@@ -233,6 +260,10 @@ const handleGeneratePayrollRun = async () => {
 }
 
 const goToSalarySetup = async () => {
+  if (!canViewPayrollSalaries.value) {
+    return
+  }
+
   closeMissingSalaryModal()
   await router.push({ name: 'payroll-salaries' })
 }
@@ -267,161 +298,235 @@ const handleExportPayrollRun = async (payrollRunId: number) => {
   }
 }
 
-const confirmRunAction = async (run: PayrollRun, action: PayrollRunMutationActionCommand) => {
+const getRunActionConfig = (
+  run: PayrollRun,
+  action: PayrollRunMutationActionCommand,
+): PayrollRunMutationActionConfig => {
+  const payrollMonthLabel = formatPayrollMonthLabel(run.payroll_month)
+
+  const actionMap: Record<PayrollRunMutationActionCommand, PayrollRunMutationActionConfig> = {
+    approve: {
+      title: 'Approve Payroll Run',
+      message: `Approve the ${payrollMonthLabel} payroll run?`,
+      detail: 'This will move the run forward so it can be marked as paid after final review.',
+      statusLabel: 'Approval',
+      status: 'success',
+      icon: Check,
+      actionLabel: 'Approve Run',
+      actionVariant: 'primary',
+      callback: () => approvePayrollRun(run.id),
+      successMessage: 'Payroll run approved successfully.',
+      errorMessage: 'We could not approve this payroll run. Please refresh and try again.',
+    },
+    'mark-paid': {
+      title: 'Mark Payroll Run as Paid',
+      message: `Mark the ${payrollMonthLabel} payroll run as paid?`,
+      detail: 'Use this after payroll has been finalized and payment has been completed.',
+      statusLabel: 'Payment',
+      status: 'primary',
+      icon: Wallet,
+      actionLabel: 'Mark as Paid',
+      actionVariant: 'primary',
+      callback: () => markPayrollRunPaid(run.id),
+      successMessage: 'Payroll run marked as paid successfully.',
+      errorMessage: 'We could not update this payroll run right now. Please refresh and try again.',
+    },
+    cancel: {
+      title: 'Cancel Payroll Run',
+      message: `Cancel the ${payrollMonthLabel} payroll run?`,
+      detail:
+        'Use this only if the run should no longer move forward. This action cannot be undone from this screen.',
+      statusLabel: 'Destructive Action',
+      status: 'danger',
+      icon: XCircle,
+      actionLabel: 'Cancel Run',
+      actionVariant: 'danger',
+      callback: () => cancelPayrollRun(run.id),
+      successMessage: 'Payroll run cancelled successfully.',
+      errorMessage: 'We could not cancel this payroll run. Please refresh and try again.',
+    },
+    regenerate: {
+      title: 'Regenerate Payroll Run',
+      message: `Regenerate the ${payrollMonthLabel} payroll run from the latest payroll data?`,
+      detail: 'Use this to rebuild a draft run after salary or attendance changes.',
+      statusLabel: 'Refresh Data',
+      status: 'warning',
+      icon: RotateCcw,
+      actionLabel: 'Regenerate Run',
+      actionVariant: 'primary',
+      callback: () => regeneratePayrollRun(run.id),
+      successMessage: 'Payroll run regenerated successfully.',
+      errorMessage: 'We could not regenerate this payroll run. Please refresh and try again.',
+    },
+  }
+
+  return actionMap[action]
+}
+
+const activeRunActionConfig = computed(() => {
+  if (!payrollRunConfirmation.value) {
+    return null
+  }
+
+  return getRunActionConfig(payrollRunConfirmation.value.run, payrollRunConfirmation.value.action)
+})
+
+const isRunActionConfirmationOpen = computed(() => payrollRunConfirmation.value !== null)
+
+const isRunActionConfirmationSubmitting = computed(() => {
+  const currentConfirmation = payrollRunConfirmation.value
+
+  if (!currentConfirmation) {
+    return false
+  }
+
+  return isMutatingPayrollRun.value && mutatingPayrollRunId.value === currentConfirmation.run.id
+})
+
+const openRunActionConfirmation = (run: PayrollRun, action: PayrollRunMutationActionCommand) => {
   if (isMutatingPayrollRun.value && mutatingPayrollRunId.value === run.id) {
     return
   }
 
-  const actionMap: Record<
-    PayrollRunMutationActionCommand,
-    {
-      title: string
-      message: string
-      confirmButtonText: string
-      confirmButtonClass?: string
-      callback: () => Promise<unknown>
-      successMessage: string
-    }
-  > = {
-    approve: {
-      title: 'Approve Payroll Run',
-      message: `Approve the ${run.payroll_month ?? 'selected'} payroll run?`,
-      confirmButtonText: 'Approve',
-      callback: () => approvePayrollRun(run.id),
-      successMessage: 'Payroll run approved successfully.',
-    },
-    'mark-paid': {
-      title: 'Mark Payroll Run Paid',
-      message: `Mark the ${run.payroll_month ?? 'selected'} payroll run as paid?`,
-      confirmButtonText: 'Mark Paid',
-      callback: () => markPayrollRunPaid(run.id),
-      successMessage: 'Payroll run marked as paid successfully.',
-    },
-    cancel: {
-      title: 'Cancel Payroll Run',
-      message: `Cancel the ${run.payroll_month ?? 'selected'} payroll run?`,
-      confirmButtonText: 'Cancel Run',
-      confirmButtonClass: 'el-button--danger',
-      callback: () => cancelPayrollRun(run.id),
-      successMessage: 'Payroll run cancelled successfully.',
-    },
-    regenerate: {
-      title: 'Regenerate Payroll Run',
-      message: `Regenerate the ${run.payroll_month ?? 'selected'} payroll run from current payroll data?`,
-      confirmButtonText: 'Regenerate',
-      callback: () => regeneratePayrollRun(run.id),
-      successMessage: 'Payroll run regenerated successfully.',
-    },
+  payrollRunConfirmation.value = {
+    run,
+    action,
   }
+}
 
-  const config = actionMap[action]
-
-  try {
-    await ElMessageBox.confirm(config.message, config.title, {
-      confirmButtonText: config.confirmButtonText,
-      cancelButtonText: 'Keep Current',
-      confirmButtonClass: config.confirmButtonClass,
-      type: action === 'cancel' ? 'warning' : 'info',
-    })
-  } catch {
+const closeRunActionConfirmation = () => {
+  if (isRunActionConfirmationSubmitting.value) {
     return
   }
+
+  payrollRunConfirmation.value = null
+}
+
+const submitRunActionConfirmation = async () => {
+  const currentConfirmation = payrollRunConfirmation.value
+  const config = activeRunActionConfig.value
+
+  if (!currentConfirmation || !config || isRunActionConfirmationSubmitting.value) {
+    return
+  }
+
+  headerError.value = ''
 
   try {
     await config.callback()
     ElMessage.success(config.successMessage)
+    payrollRunConfirmation.value = null
     await refreshPayrollRuns()
-  } catch (err) {
-    const errorMessage = getPayrollRequestErrorMessage(err)
-    ElMessage.error(errorMessage)
+  } catch {
+    headerError.value = config.errorMessage
+    ElMessage.error(config.errorMessage)
   }
 }
 
 const getRunActions = (run: PayrollRun): ActionMenuItem[] => {
+  const isRunMutating = isMutatingPayrollRun.value && mutatingPayrollRunId.value === run.id
+  const isRunExporting = isExportingPayrollRun.value && exportingPayrollRunId.value === run.id
+  const isActionDisabled = isPayrollRunsLoading.value || isRunMutating || isRunExporting
+
   const items: ActionMenuItem[] = [
     {
       key: 'view',
       label: 'View Details',
       icon: Eye,
       tone: 'primary',
+      disabled: isPayrollRunsLoading.value || isRunMutating || isRunExporting,
     },
   ]
 
-  const isRunMutating = isMutatingPayrollRun.value && mutatingPayrollRunId.value === run.id
-  const isRunExporting = isExportingPayrollRun.value && exportingPayrollRunId.value === run.id
-
-  if (canApproveRuns.value && canApprovePayrollRun(run) && !isRunMutating) {
+  if (canApproveRuns.value && canApprovePayrollRun(run)) {
     items.push({
       key: 'approve',
       label: 'Approve',
       icon: Check,
       tone: 'primary',
+      disabled: isActionDisabled,
     })
   }
 
-  if (canMarkRunsPaid.value && canMarkPayrollRunPaid(run) && !isRunMutating) {
+  if (canMarkRunsPaid.value && canMarkPayrollRunPaid(run)) {
     items.push({
       key: 'mark-paid',
       label: 'Mark Paid',
       icon: Wallet,
       tone: 'primary',
+      disabled: isActionDisabled,
     })
   }
 
-  if (canCancelRuns.value && canCancelPayrollRun(run) && !isRunMutating) {
+  if (canCancelRuns.value && canCancelPayrollRun(run)) {
     items.push({
       key: 'cancel',
       label: 'Cancel',
       icon: XCircle,
       tone: 'danger',
+      disabled: isActionDisabled,
     })
   }
 
-  if (canRegenerateRuns.value && canRegeneratePayrollRun(run) && !isRunMutating) {
+  if (canRegenerateRuns.value && canRegeneratePayrollRun(run)) {
     items.push({
       key: 'regenerate',
       label: 'Regenerate',
       icon: RotateCcw,
       tone: 'warning',
+      disabled: isActionDisabled,
     })
   }
 
-  if (canExportPayrollRuns.value && !isRunExporting) {
+  if (canExportPayrollRuns.value) {
     items.push({
       key: 'export',
       label: 'Export Excel',
       icon: Download,
       tone: 'primary',
+      disabled: isActionDisabled,
     })
   }
 
   return items
 }
 
-const handleRunAction = async ({
-  run,
-  actionKey,
-}: {
-  run: PayrollRun
-  actionKey: string
-}) => {
+const handleRunAction = async ({ run, actionKey }: { run: PayrollRun; actionKey: string }) => {
+  if (isPayrollRunsLoading.value) {
+    return
+  }
+
   if (actionKey === 'view') {
     await openPayrollRunDetail(run)
     return
   }
 
   if (actionKey === 'export') {
+    if (!canExportPayrollRuns.value) {
+      return
+    }
+
     await handleExportPayrollRun(run.id)
     return
   }
 
-  if (
-    actionKey === 'approve' ||
-    actionKey === 'cancel' ||
-    actionKey === 'mark-paid' ||
-    actionKey === 'regenerate'
-  ) {
-    await confirmRunAction(run, actionKey)
+  if (actionKey === 'approve' && canApproveRuns.value && canApprovePayrollRun(run)) {
+    openRunActionConfirmation(run, actionKey)
+    return
+  }
+
+  if (actionKey === 'cancel' && canCancelRuns.value && canCancelPayrollRun(run)) {
+    openRunActionConfirmation(run, actionKey)
+    return
+  }
+
+  if (actionKey === 'mark-paid' && canMarkRunsPaid.value && canMarkPayrollRunPaid(run)) {
+    openRunActionConfirmation(run, actionKey)
+    return
+  }
+
+  if (actionKey === 'regenerate' && canRegenerateRuns.value && canRegeneratePayrollRun(run)) {
+    openRunActionConfirmation(run, actionKey)
   }
 }
 
@@ -436,7 +541,8 @@ onMounted(() => {
       <div class="payroll-page-copy">
         <h1 class="payroll-page-title">Payroll Runs</h1>
         <p class="payroll-page-subtitle">
-          Generate monthly payroll snapshots, review totals, and move runs through approval and payment states.
+          Generate monthly payroll snapshots, review totals, and move runs through approval and
+          payment states.
         </p>
         <p v-if="headerError" class="payroll-page-error">{{ headerError }}</p>
       </div>
@@ -445,6 +551,7 @@ onMounted(() => {
         <BaseButton
           v-if="canGeneratePayrollRuns"
           :loading="isGeneratingPayrollRun"
+          :disabled="isCheckingPayrollGeneration"
           @click="openGenerateModal"
         >
           <Plus :size="16" />
@@ -456,6 +563,16 @@ onMounted(() => {
         </BaseButton>
       </div>
     </header>
+
+    <BaseCard v-if="!hasRunManagementActions" class="payroll-state-card">
+      <div class="payroll-state-copy">
+        <h2 class="payroll-section-title">View-Only Access</h2>
+        <p class="payroll-section-text">
+          You can review payroll runs, but generate, export, approval, cancellation, payment, and
+          regeneration actions are unavailable for this account.
+        </p>
+      </div>
+    </BaseCard>
 
     <BaseCard class="payroll-filters-card">
       <div class="payroll-section-header">
@@ -508,9 +625,7 @@ onMounted(() => {
 
     <BaseModal title="Generate Payroll Run" :open="isGenerateModalOpen" @close="closeGenerateModal">
       <div class="payroll-generate-modal">
-        <p class="payroll-section-text">
-          Choose the payroll month to generate a new payroll run.
-        </p>
+        <p class="payroll-section-text">Choose the payroll month to generate a new payroll run.</p>
 
         <BaseDatePicker
           v-model="generateMonth"
@@ -526,18 +641,38 @@ onMounted(() => {
 
       <template #footer>
         <BaseButton variant="ghost" @click="closeGenerateModal">Cancel</BaseButton>
-        <BaseButton :loading="isCheckingPayrollGeneration || isGeneratingPayrollRun" @click="handleGeneratePayrollRun">
+        <BaseButton
+          :loading="isCheckingPayrollGeneration || isGeneratingPayrollRun"
+          @click="handleGeneratePayrollRun"
+        >
           Generate
         </BaseButton>
       </template>
     </BaseModal>
 
     <PayrollMissingSalaryModal
+      :can-open-salary-setup="canViewPayrollSalaries"
       :employees="payrollGenerationMissingEmployees"
       :month="payrollGenerationCheckMonth"
       :open="isMissingSalaryModalOpen"
       @close="closeMissingSalaryModal"
       @go-to-salary-setup="goToSalarySetup"
+    />
+
+    <ConfirmActionModal
+      :action-label="activeRunActionConfig?.actionLabel ?? 'Continue'"
+      :action-variant="activeRunActionConfig?.actionVariant ?? 'primary'"
+      :detail="activeRunActionConfig?.detail ?? ''"
+      :icon="activeRunActionConfig?.icon ?? null"
+      :loading="isRunActionConfirmationSubmitting"
+      :message="activeRunActionConfig?.message ?? ''"
+      :open="isRunActionConfirmationOpen"
+      :status="activeRunActionConfig?.status ?? 'primary'"
+      :status-label="activeRunActionConfig?.statusLabel ?? ''"
+      :title="activeRunActionConfig?.title ?? 'Confirm Payroll Action'"
+      close-label="Back"
+      @close="closeRunActionConfirmation"
+      @confirm="submitRunActionConfirmation"
     />
   </main>
 </template>
@@ -547,6 +682,16 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.payroll-state-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.payroll-state-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .payroll-page-header,

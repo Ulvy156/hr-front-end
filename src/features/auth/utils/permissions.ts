@@ -1,6 +1,7 @@
-import type { Permission } from '@/constants/permissions'
+import { PERMISSIONS, type Permission } from '@/constants/permissions'
 
 import type { AuthUser } from '../interface/auth.interface'
+import { canUseEmployeeSelfService } from './userContext'
 
 type PermissionLike = Permission | string
 type PermissionSource = Pick<AuthUser, 'permissions' | 'permission_names'> | null | undefined
@@ -93,4 +94,35 @@ export const hasUserAllPermissions = (
   permissionNames: PermissionLike[],
 ) => {
   return createPermissionHelpers(user).canAll(permissionNames)
+}
+
+export const hasUserEmployeePermission = (
+  user: AuthUser | null | undefined,
+  permissionName: PermissionLike,
+) => {
+  return canUseEmployeeSelfService(user) && hasUserPermission(user, permissionName)
+}
+
+export const canAccessMyOvertimeRequests = (user: AuthUser | null | undefined) => {
+  return hasUserEmployeePermission(user, PERMISSIONS.OVERTIME_REQUEST_VIEW_SELF)
+}
+
+export const canCreateOwnOvertimeRequests = (user: AuthUser | null | undefined) => {
+  return hasUserEmployeePermission(user, PERMISSIONS.OVERTIME_REQUEST_CREATE)
+}
+
+export const canCancelOwnOvertimeRequests = (user: AuthUser | null | undefined) => {
+  return hasUserEmployeePermission(user, PERMISSIONS.OVERTIME_REQUEST_CANCEL)
+}
+
+export const canAccessOvertimeApprovals = (user: AuthUser | null | undefined) => {
+  return hasUserAnyPermission(user, [
+    PERMISSIONS.OVERTIME_APPROVE_MANAGER,
+    PERMISSIONS.OVERTIME_REQUEST_VIEW_ASSIGNED,
+    PERMISSIONS.OVERTIME_REQUEST_VIEW_ANY,
+  ])
+}
+
+export const canApproveOvertimeRequests = (user: AuthUser | null | undefined) => {
+  return hasUserPermission(user, PERMISSIONS.OVERTIME_APPROVE_MANAGER)
 }
